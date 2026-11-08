@@ -687,7 +687,18 @@ namespace AiBypass
                 }
                 if (killed > 0) { log.Add("  принудительно закрыто процессов: " + killed); }
 
-                System.Threading.Thread.Sleep(700);
+                // ждём, пока не останется ни одного процесса: иначе новый запуск
+                // прицепится к ещё живущему старому и ключи запуска потеряются
+                DateTime gone = DateTime.Now.AddSeconds(15);
+                while (DateTime.Now < gone)
+                {
+                    Process[] left;
+                    try { left = Process.GetProcessesByName(name); }
+                    catch { left = new Process[0]; }
+                    if (left.Length == 0) { break; }
+                    System.Threading.Thread.Sleep(400);
+                }
+                System.Threading.Thread.Sleep(600);
 
                 if (exe.Length > 0)
                 {
@@ -695,7 +706,10 @@ namespace AiBypass
                     {
                         string a = extraArgs == null ? "" : extraArgs;
                         if (openUrl != null && openUrl.Length > 0) { a = (a + " \"" + openUrl + "\"").Trim(); }
-                        Process.Start(exe, a);
+                        ProcessStartInfo psi2 = new ProcessStartInfo(exe, a);
+                        psi2.UseShellExecute = false;
+                        psi2.WorkingDirectory = Path.GetDirectoryName(exe);
+                        Process.Start(psi2);
                         done.Add(name);
                         log.Add("  запустил заново: " + exe + (a.Length > 0 ? " " + a : ""));
                     }

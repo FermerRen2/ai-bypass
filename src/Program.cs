@@ -229,6 +229,18 @@ namespace AiBypass
                             return 0;
                         }
 
+                    case "--browser-proxy":
+                        {
+                            bool on = args.Length >= 2 && args[1].Equals("on", StringComparison.OrdinalIgnoreCase);
+                            List<string> lines = new List<string>();
+                            Core.RestartProcesses(Core.BrowserProcesses, lines, false,
+                                on ? "https://gemini.google.com/app" : null,
+                                on ? "--proxy-server=http://127.0.0.1:" + Relay.LocalPort : "");
+                            for (int i = 0; i < lines.Count; i++) { Console.WriteLine(lines[i]); }
+                            Console.WriteLine(on ? "браузеры перезапущены С прокси" : "браузеры перезапущены БЕЗ прокси");
+                            return 0;
+                        }
+
                     case "--off":
                         Core.OffHosts();
                         Console.WriteLine("блок снят");
