@@ -592,6 +592,12 @@ namespace AiBypass
                 List<string> done = Core.RestartProcesses(Core.BrowserProcesses, logLines, true);
                 for (int i = 0; i < logLines.Count; i++) { Write("  " + logLines[i]); }
 
+                List<string> privLines = new List<string>();
+                Core.OpenPrivate("https://gemini.google.com/", privLines);
+                for (int i = 0; i < privLines.Count; i++) { Write("  " + privLines[i]); }
+                Write("Открыл в приватном окне - там нет старых куки. Если ЗДЕСЬ работает, а в обычном окне нет,");
+                Write("значит виновата сессия: выйди из аккаунта Google и зайди снова (или очисти куки google.com).");
+
                 if (done.Count == 0) { Write("  запущенных браузеров не нашёл - открой gemini.google.com вручную."); }
                 Write("Готово. В hosts " + Core.CurrentDomainCount() + " доменов, Gemini идёт напрямую.");
             }

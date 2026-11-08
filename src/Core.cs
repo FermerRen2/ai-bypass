@@ -709,6 +709,59 @@ namespace AiBypass
             return done;
         }
 
+        // Открывает сайт в приватном окне браузера: без куки и без расширений.
+        // Нужно, чтобы отличить «сломан доступ» от «испорчена сессия/куки».
+        public static string OpenPrivate(string url, List<string> log)
+        {
+            string exe = "";
+            string name = "";
+            for (int i = 0; i < BrowserProcesses.Length; i++)
+            {
+                Process[] ps;
+                try { ps = Process.GetProcessesByName(BrowserProcesses[i]); }
+                catch { continue; }
+                if (ps.Length == 0) { continue; }
+                for (int k = 0; k < ps.Length; k++)
+                {
+                    try
+                    {
+                        if (ps[k].MainModule != null) { exe = ps[k].MainModule.FileName; break; }
+                    }
+                    catch { }
+                }
+                if (exe.Length > 0) { name = BrowserProcesses[i]; break; }
+            }
+
+            if (exe.Length == 0)
+            {
+                try
+                {
+                    Process.Start(url);
+                    log.Add("браузер не опознан - открыл сайт в браузере по умолчанию");
+                    return "";
+                }
+                catch (Exception ex) { log.Add("не смог открыть сайт: " + Short(ex.Message)); return ""; }
+            }
+
+            string args;
+            if (name == "firefox") { args = "-private-window \"" + url + "\""; }
+            else { args = "--incognito \"" + url + "\""; }
+
+            try
+            {
+                ProcessStartInfo psi = new ProcessStartInfo(exe, args);
+                psi.UseShellExecute = false;
+                Process.Start(psi);
+                log.Add("открыл приватное окно: " + exe);
+                return exe;
+            }
+            catch (Exception ex)
+            {
+                log.Add("приватное окно не открылось: " + Short(ex.Message));
+                return "";
+            }
+        }
+
         // ---------- правила DNS (NRPT) ----------
 
         public static string RunPowerShell(string script)

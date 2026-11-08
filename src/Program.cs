@@ -180,6 +180,14 @@ namespace AiBypass
                             return 0;
                         }
 
+                    case "--gemini-private":
+                        {
+                            List<string> lines = new List<string>();
+                            Core.OpenPrivate("https://gemini.google.com/", lines);
+                            for (int i = 0; i < lines.Count; i++) { Console.WriteLine(lines[i]); }
+                            return 0;
+                        }
+
                     case "--off":
                         Core.OffHosts();
                         Console.WriteLine("блок снят");
