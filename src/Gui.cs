@@ -81,6 +81,7 @@ namespace AiBypass
         {
             Graphics g = pe.Graphics;
             g.SmoothingMode = SmoothingMode.AntiAlias;
+            using (SolidBrush bg = new SolidBrush(BackColor)) { g.FillRectangle(bg, ClientRectangle); }
 
             Rectangle r = new Rectangle(0, 0, Width - 1, Height - 1);
 
@@ -161,10 +162,12 @@ namespace AiBypass
         protected override void OnPaint(PaintEventArgs pe)
         {
             pe.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+            // заливаем фон целиком: иначе текст рисуется поверх прошлого кадра и «двоится»
+            using (SolidBrush bg = new SolidBrush(BackColor)) { pe.Graphics.FillRectangle(bg, ClientRectangle); }
             if (hover)
             {
                 using (GraphicsPath p = Ui.Round(new Rectangle(0, 0, Width - 1, Height - 1), Radius))
-                using (SolidBrush b = new SolidBrush(FillHover)) { pe.Graphics.FillPath(b, p); }
+                using (SolidBrush b = new SolidBrush(Color.FromArgb(150, FillHover))) { pe.Graphics.FillPath(b, p); }
             }
             TextRenderer.DrawText(pe.Graphics, Text, Font, ClientRectangle, TextColor,
                 TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
@@ -231,6 +234,7 @@ namespace AiBypass
 
     internal static class Gui
     {
+        private const string RepoUrl = "https://github.com/FermerRen2/ai-bypass";
         private const int W = 560;
         private const int HeightClosed = 400;
         private const int HeightOpen = 900;
@@ -473,6 +477,14 @@ namespace AiBypass
             settingsLink.FillHover = Color.FromArgb(40, 46, 66);
             settingsLink.Click += new EventHandler(OnToggleSettings);
             form.Controls.Add(settingsLink);
+
+            FlatButton repoLink = new FlatButton();
+            repoLink.SetBounds(W - 190, 306, 166, 32);
+            repoLink.Text = "GitHub · v1.1.10";
+            repoLink.Font = new Font("Segoe UI", 8.5f);
+            repoLink.BackColor = Theme.BgTop;
+            repoLink.Click += new EventHandler(OpenRepo);
+            form.Controls.Add(repoLink);
         }
 
         private static void BuildSettings()
@@ -517,7 +529,7 @@ namespace AiBypass
             card.Controls.Add(bPull);
 
             Label hint = new Label();
-            hint.Text = "Всё остальное настроено заранее: галочек и списков больше нет.";
+            hint.Text = "Исходники и новые версии: github.com/FermerRen2/ai-bypass";
             hint.SetBounds(18, 172, 484, 18);
             hint.ForeColor = Theme.Muted;
             hint.BackColor = Theme.BgTop;
@@ -648,6 +660,16 @@ namespace AiBypass
         {
             if (log == null) { return; }
             log.AppendText("[" + DateTime.Now.ToString("HH:mm:ss") + "] " + s + Environment.NewLine);
+        }
+
+        private static void OpenRepo(object sender, EventArgs e)
+        {
+            try
+            {
+                System.Diagnostics.Process.Start(RepoUrl);
+                Write("Открыл страницу программы: " + RepoUrl);
+            }
+            catch (Exception ex) { Write("Не смог открыть ссылку: " + ex.Message); }
         }
 
         private static void OnToggleSettings(object sender, EventArgs e)
