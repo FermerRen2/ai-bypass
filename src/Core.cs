@@ -871,6 +871,30 @@ namespace AiBypass
             return head + auth + url.Substring(at);
         }
 
+        // отметка: программа запускала браузеры с нашим ключом прокси. Нужна, чтобы при
+        // выходе и при следующем запуске вернуть браузеры в нормальное состояние,
+        // а не дёргать их без нужды.
+        public static string BrowserMarkPath
+        {
+            get { return Path.Combine(AppDir, "browsers-proxy.txt"); }
+        }
+
+        public static void MarkBrowsersWithProxy(bool on)
+        {
+            try
+            {
+                if (on) { File.WriteAllText(BrowserMarkPath, "1", Encoding.ASCII); }
+                else if (File.Exists(BrowserMarkPath)) { File.Delete(BrowserMarkPath); }
+            }
+            catch { }
+        }
+
+        public static bool BrowsersMarked()
+        {
+            try { return File.Exists(BrowserMarkPath); }
+            catch { return false; }
+        }
+
         public static string ProxySourcePath
         {
             get { return Path.Combine(AppDir, "proxy-source.txt"); }

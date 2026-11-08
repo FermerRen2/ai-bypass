@@ -149,10 +149,15 @@ namespace AiBypass
             // Окно прячется в трей, релей продолжает работать.
             form.FormClosing += new FormClosingEventHandler(delegate (object s, FormClosingEventArgs e)
             {
-                if (!reallyExit)
+
+                bool stopping = e.CloseReason == CloseReason.WindowsShutDown ||
+                                e.CloseReason == CloseReason.TaskManagerClosing;
+
+                if (!reallyExit && !stopping)
                 {
                     e.Cancel = true;
                     form.Hide();
+
                     if (tray != null)
                     {
                         tray.Visible = true;
@@ -174,6 +179,15 @@ namespace AiBypass
                 if (sp != null && sp.IndexOf("127.0.0.1", StringComparison.Ordinal) >= 0)
                 {
                     Core.SetSystemProxy("");
+                }
+
+                // если прошлый запуск оставил браузеры с нашим ключом прокси - вернуть их в норму
+                if (Core.BrowsersMarked())
+                {
+                    List<string> heal = new List<string>();
+                    Core.RestartProcesses(Core.BrowserProcesses, heal, false, null, "");
+                    Core.MarkBrowsersWithProxy(false);
+                    WriteAll(heal);
                 }
             }
             catch { }
@@ -231,7 +245,7 @@ namespace AiBypass
             menu.Items.Add("Выход", null, new EventHandler(delegate (object s, EventArgs e)
             {
                 reallyExit = true;
-                if (Relay.IsRunning) { TurnOff(); }
+                TurnOff();
                 if (tray != null) { tray.Visible = false; tray.Dispose(); tray = null; }
                 Application.Exit();
             }));
@@ -479,6 +493,7 @@ namespace AiBypass
                 List<string> bl = new List<string>();
                 Core.RestartProcesses(Core.BrowserProcesses, bl, false,
                     "https://gemini.google.com/app", "--proxy-server=http://127.0.0.1:" + Relay.LocalPort);
+                Core.MarkBrowsersWithProxy(true);
                 WriteAll(bl);
             }
             catch (Exception ex)
@@ -493,12 +508,24 @@ namespace AiBypass
         {
             Relay.Stop(null);
             Core.SetSystemProxy("");
-            Write("Выключено. Перезапускаю браузеры без прокси.");
-            RefreshState();
-            Application.DoEvents();
-            List<string> bl = new List<string>();
-            Core.RestartProcesses(Core.BrowserProcesses, bl, false, null, "");
-            WriteAll(bl);
+
+            // браузеры, запущенные нами с ключом прокси, надо вернуть в норму:
+            // иначе они останутся с настройкой на мёртвый порт
+            if (Core.BrowsersMarked())
+            {
+                Write("Выключено. Перезапускаю браузеры без прокси.");
+                RefreshState();
+                Application.DoEvents();
+                List<string> bl = new List<string>();
+                Core.RestartProcesses(Core.BrowserProcesses, bl, false, null, "");
+                Core.MarkBrowsersWithProxy(false);
+                WriteAll(bl);
+            }
+            else
+            {
+                Write("Выключено. Прокси снят.");
+                RefreshState();
+            }
         }
 
         private static void OnSaveSettings(object sender, EventArgs e)

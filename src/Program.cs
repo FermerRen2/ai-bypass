@@ -58,7 +58,7 @@ namespace AiBypass
                 {
                     case "--version":
                     case "-v":
-                        Console.WriteLine("AiBypass 1.1.2");
+                        Console.WriteLine("AiBypass 1.1.3");
                         return 0;
 
                     case "--state":
