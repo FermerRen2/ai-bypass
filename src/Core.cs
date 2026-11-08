@@ -762,6 +762,75 @@ namespace AiBypass
             }
         }
 
+        // ---------- системный прокси ----------
+
+        [System.Runtime.InteropServices.DllImport("wininet.dll", SetLastError = true)]
+        private static extern bool InternetSetOption(IntPtr hInternet, int dwOption, IntPtr lpBuffer, int dwBufferLength);
+
+        private static void RefreshWinInet()
+        {
+            try
+            {
+                InternetSetOption(IntPtr.Zero, 39, IntPtr.Zero, 0);
+                InternetSetOption(IntPtr.Zero, 37, IntPtr.Zero, 0);
+            }
+            catch { }
+        }
+
+        // server пустой - выключить прокси
+        public static void SetSystemProxy(string server)
+        {
+            string key = @"Software\Microsoft\Windows\CurrentVersion\Internet Settings";
+            using (Microsoft.Win32.RegistryKey k = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(key, true))
+            {
+                if (k == null) { throw new Exception("нет доступа к настройкам прокси"); }
+                if (string.IsNullOrEmpty(server))
+                {
+                    k.SetValue("ProxyEnable", 0);
+                    k.DeleteValue("AutoConfigURL", false);
+                }
+                else
+                {
+                    k.SetValue("ProxyEnable", 1);
+                    k.SetValue("ProxyServer", server);
+                    k.SetValue("ProxyOverride", "<local>;127.*;192.168.*");
+                    k.DeleteValue("AutoConfigURL", false);
+                }
+            }
+            RefreshWinInet();
+        }
+
+        public static string SystemProxy()
+        {
+            string key = @"Software\Microsoft\Windows\CurrentVersion\Internet Settings";
+            using (Microsoft.Win32.RegistryKey k = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(key, false))
+            {
+                if (k == null) { return ""; }
+                object en = k.GetValue("ProxyEnable");
+                object srv = k.GetValue("ProxyServer");
+                if (en == null || Convert.ToInt32(en) == 0 || srv == null) { return ""; }
+                return srv.ToString();
+            }
+        }
+
+        public static string ProxyUrlPath
+        {
+            get { return Path.Combine(AppDir, "proxy.txt"); }
+        }
+
+        public static string LoadProxyUrl()
+        {
+            try { if (File.Exists(ProxyUrlPath)) { return File.ReadAllText(ProxyUrlPath).Trim(); } }
+            catch { }
+            return "";
+        }
+
+        public static void SaveProxyUrl(string url)
+        {
+            try { File.WriteAllText(ProxyUrlPath, url, Encoding.UTF8); }
+            catch { }
+        }
+
         // ---------- правила DNS (NRPT) ----------
 
         public static string RunPowerShell(string script)

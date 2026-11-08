@@ -12,6 +12,7 @@ nrpt-state-*.json
 # журналы работы: в них бывают личные пути и адреса
 *-log.txt
 crash.txt
+proxy.txt
 
 # системный мусор
 Thumbs.db

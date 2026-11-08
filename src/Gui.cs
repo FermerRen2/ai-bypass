@@ -140,12 +140,15 @@ namespace AiBypass
         private static TextBox log;
         private static CheckedListBox serviceList;
         private static CheckBox restartBrowser;
+        private static TextBox proxyBox;
+        private static FlatButton proxyToggle;
+        private static Label proxyState;
 
         public static void Run()
         {
             form = new Form();
             form.Text = "AiBypass";
-            form.ClientSize = new Size(740, 856);
+            form.ClientSize = new Size(740, 986);
             form.StartPosition = FormStartPosition.CenterScreen;
             form.FormBorderStyle = FormBorderStyle.FixedSingle;
             form.MaximizeBox = false;
@@ -157,10 +160,12 @@ namespace AiBypass
             BuildConnectionCard();
             BuildServicesCard();
             BuildDnsCard();
+            BuildProxyCard();
             BuildLogCard();
 
             LoadSelection();
             RefreshState();
+            RefreshProxyState();
 
             Write("Готово. Если старый адрес перестал работать - вставь ссылку на сервис и нажми «Найти адрес».");
             Write("Программа поищет адрес в их hosts-файле, на сайте и в ответе их DNS, а потом проверит его.");
@@ -170,7 +175,80 @@ namespace AiBypass
                 Write("ВНИМАНИЕ: запущено без прав администратора - менять hosts и правила DNS не получится.");
             }
 
+            form.FormClosing += new FormClosingEventHandler(delegate (object s, FormClosingEventArgs e)
+            {
+                if (Relay.IsRunning)
+                {
+                    Relay.Stop(null);
+                    try { Core.SetSystemProxy(""); } catch { }
+                }
+            });
+
             Application.Run(form);
+        }
+
+        private static void RefreshProxyState()
+        {
+            if (proxyToggle == null) { return; }
+            if (Relay.IsRunning)
+            {
+                proxyToggle.Text = "Выключить";
+                proxyState.Text = "Включено: браузеры ходят через 127.0.0.1:" + Relay.LocalPort
+                    + ", дальше Google идёт через " + Relay.CurrentUpstream + ", остальное напрямую.";
+                proxyState.ForeColor = Theme.Green;
+            }
+            else
+            {
+                proxyToggle.Text = "Включить";
+                string sp = Core.SystemProxy();
+                proxyState.Text = sp.Length > 0
+                    ? "В системе уже прописан прокси " + sp + " (включён не этой программой)."
+                    : "Выключено: браузеры ходят напрямую.";
+                proxyState.ForeColor = Theme.Muted;
+            }
+        }
+
+        private static void OnProxyTest(object sender, EventArgs e)
+        {
+            try
+            {
+                ProxySettings ps = ProxySettings.Parse(proxyBox.Text.Trim());
+                Write("Проверяю прокси " + ps.Display + " ...");
+                Application.DoEvents();
+                string r = Relay.TestProxy(ps, "gemini.google.com", "/app", 20000);
+                Write("  gemini.google.com -> " + r);
+                if (r == "200") { Write("Прокси живой. Жми «Включить»."); }
+                else { Write("Ответ не 200 - прокси может быть мёртв, проверять в личном кабинете."); }
+            }
+            catch (Exception ex) { Write("Не вышло: " + ex.Message); }
+        }
+
+        private static void OnProxyToggle(object sender, EventArgs e)
+        {
+            try
+            {
+                if (Relay.IsRunning)
+                {
+                    Relay.Stop(null);
+                    Core.SetSystemProxy("");
+                    Write("Прокси выключен, браузеры снова ходят напрямую.");
+                    RefreshProxyState();
+                    return;
+                }
+
+                string url = proxyBox.Text.Trim();
+                if (url.Length == 0) { Write("Вставь ссылку на прокси в поле выше."); return; }
+                ProxySettings ps = ProxySettings.Parse(url);
+                List<string> lines = new List<string>();
+                Relay.Start(ps, lines);
+                for (int i = 0; i < lines.Count; i++) { Write("  " + lines[i]); }
+                Core.SetSystemProxy("127.0.0.1:" + Relay.LocalPort);
+                Core.SaveProxyUrl(url);
+                Write("Готово. Домены Google идут через " + ps.Display + ", остальное - напрямую.");
+                Write("Перезапусти браузер, чтобы он подхватил настройку прокси.");
+                RefreshProxyState();
+            }
+            catch (Exception ex) { Write("Не вышло: " + ex.Message); }
         }
 
         // ---------- сборка окна ----------
@@ -332,10 +410,47 @@ namespace AiBypass
             card.Controls.Add(bOff);
         }
 
+        private static void BuildProxyCard()
+        {
+            CardPanel card = new CardPanel();
+            card.Title = "ПРОКСИ ДЛЯ GEMINI И GOOGLE (КУПЛЕННЫЙ)";
+            card.SetBounds(12, 734, 716, 120);
+            form.Controls.Add(card);
+
+            Label l = new Label();
+            l.Text = "Ссылка вида socks5://ЛОГИН:ПАРОЛЬ@АДРЕС:ПОРТ";
+            l.SetBounds(18, 34, 420, 18);
+            l.ForeColor = Theme.Muted;
+            card.Controls.Add(l);
+
+            proxyBox = new TextBox();
+            proxyBox.SetBounds(18, 54, 430, 26);
+            proxyBox.BorderStyle = BorderStyle.FixedSingle;
+            proxyBox.Font = new Font("Consolas", 9f);
+            proxyBox.Text = Core.LoadProxyUrl();
+            card.Controls.Add(proxyBox);
+
+            FlatButton bTest = MakeButton("Проверить", 456, 53, 110, 28, OnProxyTest);
+            card.Controls.Add(bTest);
+
+            proxyToggle = MakeButton("Включить", 574, 53, 118, 28, OnProxyToggle);
+            proxyToggle.FillNormal = Theme.Accent;
+            proxyToggle.FillHover = Theme.AccentHover;
+            proxyToggle.TextColor = Color.White;
+            proxyToggle.Font = new Font("Segoe UI", 9f, FontStyle.Bold);
+            card.Controls.Add(proxyToggle);
+
+            proxyState = new Label();
+            proxyState.SetBounds(18, 84, 680, 20);
+            proxyState.ForeColor = Theme.Muted;
+            proxyState.Font = new Font("Segoe UI", 8.5f);
+            card.Controls.Add(proxyState);
+        }
+
         private static void BuildLogCard()
         {
             CardPanel card = new CardPanel();
-            card.SetBounds(12, 734, 716, 106);
+            card.SetBounds(12, 864, 716, 106);
             form.Controls.Add(card);
 
             log = new TextBox();

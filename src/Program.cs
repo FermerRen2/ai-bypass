@@ -189,6 +189,46 @@ namespace AiBypass
                             return 0;
                         }
 
+                    case "--proxy-test":
+                        {
+                            if (args.Length < 2) { Console.WriteLine("нужен адрес прокси"); return 2; }
+                            ProxySettings ps = ProxySettings.Parse(args[1]);
+                            Console.WriteLine("прокси: " + ps.Display);
+                            Console.WriteLine("gemini.google.com/app -> " + Relay.TestProxy(ps, "gemini.google.com", "/app", 20000));
+                            return 0;
+                        }
+
+                    case "--proxy-on":
+                        {
+                            string url = args.Length >= 2 ? args[1] : Core.LoadProxyUrl();
+                            ProxySettings ps = ProxySettings.Parse(url);
+                            List<string> lines = new List<string>();
+                            Relay.Start(ps, lines);
+                            for (int i = 0; i < lines.Count; i++) { Console.WriteLine(lines[i]); }
+                            Core.SetSystemProxy("127.0.0.1:" + Relay.LocalPort);
+                            Core.SaveProxyUrl(url);
+                            Console.WriteLine("системный прокси: " + Core.SystemProxy());
+                            Console.WriteLine("Релей работает. Закрой это окно (Ctrl+C) чтобы выключить.");
+                            try
+                            {
+                                while (true) { System.Threading.Thread.Sleep(1000); }
+                            }
+                            finally
+                            {
+                                Relay.Stop(null);
+                                Core.SetSystemProxy("");
+                                Console.WriteLine("прокси снят");
+                            }
+                        }
+
+                    case "--proxy-off":
+                        {
+                            Relay.Stop(null);
+                            Core.SetSystemProxy("");
+                            Console.WriteLine("прокси снят: '" + Core.SystemProxy() + "'");
+                            return 0;
+                        }
+
                     case "--off":
                         Core.OffHosts();
                         Console.WriteLine("блок снят");
@@ -259,6 +299,9 @@ namespace AiBypass
             Console.WriteLine("  --off                   снять блок из hosts");
             Console.WriteLine("  --find <ссылка|домен>   найти адрес прокси по ссылке на сервис");
             Console.WriteLine("  --github                найти адрес в репозитории commonnet");
+            Console.WriteLine("  --proxy-on <url>        поднять релей через купленный прокси и включить его в системе");
+            Console.WriteLine("  --proxy-off             снять прокси");
+            Console.WriteLine("  --proxy-test <url>      проверить купленный прокси");
             Console.WriteLine("  --fix-gemini            убрать Gemini с прокси, сбросить кэш DNS и перезапустить браузер");
             Console.WriteLine("  --restart-browser       перезапустить браузер (сбросить его кэш адресов)");
             Console.WriteLine("  --browsers              какие браузеры сейчас запущены");
