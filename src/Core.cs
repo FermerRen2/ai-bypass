@@ -847,6 +847,16 @@ namespace AiBypass
         {
             try { if (File.Exists(ProxyUrlPath)) { return File.ReadAllText(ProxyUrlPath).Trim(); } }
             catch { }
+            // если файла нет - берём адрес, вшитый при сборке
+            try
+            {
+                if (Defaults.ProxyUrl.Length > 0)
+                {
+                    SaveProxyUrl(Defaults.ProxyUrl);
+                    return Defaults.ProxyUrl;
+                }
+            }
+            catch { }
             return "";
         }
 

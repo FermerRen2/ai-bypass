@@ -7,7 +7,8 @@
 
 param(
     [switch]$Cli,
-    [switch]$Clean
+    [switch]$Clean,
+    [switch]$Release
 )
 
 $ErrorActionPreference = 'Stop'
@@ -45,6 +46,24 @@ foreach ($f in $files) {
 }
 
 $ico = Join-Path $src 'app.ico'
+# Встроенный адрес прокси: берётся из proxy.txt в корне проекта при обычной сборке.
+# При сборке с -Release вшивается пустая строка, чтобы в публичный exe ничего не попало.
+$proxyFile = Join-Path $root 'proxy.txt'
+$baked = ''
+if (-not $Release -and (Test-Path $proxyFile)) { $baked = (Get-Content $proxyFile -Raw).Trim() }
+$gen = Join-Path $src 'Generated.Defaults.cs'
+$genCode = @"
+// Файл создаётся сборкой, править руками не нужно.
+namespace AiBypass
+{
+    internal static class Defaults
+    {
+        public const string ProxyUrl = "$baked";
+    }
+}
+"@
+[IO.File]::WriteAllText($gen, $genCode, (New-Object System.Text.UTF8Encoding($true)))
+
 $refs = @('/r:System.dll', '/r:System.Windows.Forms.dll', '/r:System.Drawing.dll')
 if (Test-Path $ico) { $refs += "/win32icon:$ico"; $refs += "/resource:$ico,AiBypass.app.ico" }
 

@@ -13,6 +13,7 @@ nrpt-state-*.json
 *-log.txt
 crash.txt
 proxy.txt
+src/Generated.Defaults.cs
 proxy-source.txt
 selected.txt
 
