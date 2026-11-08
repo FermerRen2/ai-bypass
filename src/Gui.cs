@@ -63,7 +63,7 @@ namespace AiBypass
                      ControlStyles.SupportsTransparentBackColor, true);
             FlatStyle = FlatStyle.Flat;
             FlatAppearance.BorderSize = 0;
-            BackColor = Color.Transparent;
+            BackColor = Theme.BgTop;
             Cursor = Cursors.Hand;
             Font = new Font("Segoe UI Semibold", 12.5f, FontStyle.Bold);
         }
@@ -150,7 +150,7 @@ namespace AiBypass
                      ControlStyles.SupportsTransparentBackColor, true);
             FlatStyle = FlatStyle.Flat;
             FlatAppearance.BorderSize = 0;
-            BackColor = Color.Transparent;
+            BackColor = Theme.BgTop;
             Cursor = Cursors.Hand;
             Font = new Font("Segoe UI", 9f);
         }
@@ -184,7 +184,7 @@ namespace AiBypass
                      ControlStyles.SupportsTransparentBackColor, true);
             FlatStyle = FlatStyle.Flat;
             FlatAppearance.BorderSize = 0;
-            BackColor = Color.Transparent;
+            BackColor = Theme.BgTop;
             Cursor = Cursors.Hand;
         }
 
@@ -195,6 +195,7 @@ namespace AiBypass
         {
             Graphics g = pe.Graphics;
             g.SmoothingMode = SmoothingMode.AntiAlias;
+            using (SolidBrush bg = new SolidBrush(BackColor)) { g.FillRectangle(bg, ClientRectangle); }
             if (hover)
             {
                 Color fill = IsClose ? Color.FromArgb(90, 40, 52) : Color.FromArgb(40, 46, 66);
@@ -213,7 +214,7 @@ namespace AiBypass
         {
             SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint |
                      ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
-            BackColor = Color.Transparent;
+            BackColor = Theme.BgTop;
         }
 
         protected override void OnPaint(PaintEventArgs pe)
@@ -347,6 +348,7 @@ namespace AiBypass
                 bigButton.Pulse = (float)((Math.Sin(pulsePhase) + 1) / 2);
                 bigButton.Step();
                 bigButton.Invalidate();
+                form.Invalidate();
             });
             anim.Start();
 
@@ -358,21 +360,21 @@ namespace AiBypass
             Graphics g = e.Graphics;
             g.SmoothingMode = SmoothingMode.AntiAlias;
 
+            if (form == null) { return; }
             Rectangle full = new Rectangle(0, 0, form.ClientSize.Width, form.ClientSize.Height);
-            using (LinearGradientBrush bg = new LinearGradientBrush(
-                new Rectangle(0, 0, Math.Max(1, full.Width), Math.Max(1, full.Height)),
-                Theme.BgTop, Theme.BgBottom, LinearGradientMode.Vertical))
+            using (SolidBrush bg = new SolidBrush(Theme.BgTop))
             {
                 g.FillRectangle(bg, full);
             }
 
-            float k = 0.55f + bigButton.Pulse * 0.25f;
+            float pulse = bigButton == null ? 0.5f : bigButton.Pulse;
+            float k = 0.55f + pulse * 0.25f;
             int cx = full.Width / 2;
             int cy = 250;
             for (int i = 8; i >= 1; i--)
             {
                 int rad = i * 46;
-                int alpha = (int)(9 * k);
+                int alpha = (int)(6 * k);
                 if (alpha < 2) { continue; }
                 using (GraphicsPath p = new GraphicsPath())
                 {
@@ -409,11 +411,12 @@ namespace AiBypass
         {
             Panel header = new Panel();
             header.SetBounds(0, 0, W, 92);
-            header.BackColor = Color.Transparent;
+            header.BackColor = Theme.BgTop;
             header.MouseDown += new MouseEventHandler(DragWindow);
             header.Paint += new PaintEventHandler(delegate (object s, PaintEventArgs e)
             {
                 e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+                using (SolidBrush bg = new SolidBrush(Theme.BgTop)) { e.Graphics.FillRectangle(bg, header.ClientRectangle); }
                 using (Font f1 = new Font("Segoe UI Semibold", 17f, FontStyle.Bold))
                 using (Font f2 = new Font("Segoe UI", 8.5f))
                 {
@@ -424,7 +427,7 @@ namespace AiBypass
             });
 
             WinButton bMin = new WinButton();
-            bMin.Text = "_";
+            bMin.Text = "-";
             bMin.Font = new Font("Segoe UI", 12f, FontStyle.Bold);
             bMin.SetBounds(W - 92, 22, 32, 30);
             bMin.Click += new EventHandler(delegate (object s, EventArgs e) { form.WindowState = FormWindowState.Minimized; });
@@ -432,7 +435,7 @@ namespace AiBypass
 
             WinButton bClose = new WinButton();
             bClose.IsClose = true;
-            bClose.Text = "x";
+            bClose.Text = "X";
             bClose.Font = new Font("Segoe UI", 9.5f, FontStyle.Bold);
             bClose.SetBounds(W - 54, 22, 32, 30);
             bClose.Click += new EventHandler(delegate (object s, EventArgs e) { form.Close(); });
@@ -447,14 +450,14 @@ namespace AiBypass
             stateLabel.SetBounds(24, 108, W - 48, 30);
             stateLabel.Font = new Font("Segoe UI Semibold", 14f, FontStyle.Bold);
             stateLabel.ForeColor = Theme.Text;
-            stateLabel.BackColor = Color.Transparent;
+            stateLabel.BackColor = Theme.BgTop;
             form.Controls.Add(stateLabel);
 
             detailLabel = new Label();
             detailLabel.SetBounds(25, 142, W - 50, 44);
             detailLabel.Font = new Font("Segoe UI", 8.5f);
             detailLabel.ForeColor = Theme.Muted;
-            detailLabel.BackColor = Color.Transparent;
+            detailLabel.BackColor = Theme.BgTop;
             form.Controls.Add(detailLabel);
 
             bigButton = new GlowButton();
@@ -466,6 +469,8 @@ namespace AiBypass
             settingsLink.SetBounds(24, 306, 140, 32);
             settingsLink.Text = "Настройки";
             settingsLink.Font = new Font("Segoe UI", 8.5f);
+            settingsLink.BackColor = Color.FromArgb(26, 30, 44);
+            settingsLink.FillHover = Color.FromArgb(40, 46, 66);
             settingsLink.Click += new EventHandler(OnToggleSettings);
             form.Controls.Add(settingsLink);
         }
@@ -474,7 +479,7 @@ namespace AiBypass
         {
             settingsPanel = new Panel();
             settingsPanel.SetBounds(0, 350, W, HeightOpen - 350);
-            settingsPanel.BackColor = Color.Transparent;
+            settingsPanel.BackColor = Theme.BgTop;
             settingsPanel.Visible = false;
             form.Controls.Add(settingsPanel);
 
@@ -486,7 +491,7 @@ namespace AiBypass
             l1.Text = "Адрес прокси: socks5://ЛОГИН:ПАРОЛЬ@АДРЕС:ПОРТ";
             l1.SetBounds(18, 16, 480, 18);
             l1.ForeColor = Theme.Muted;
-            l1.BackColor = Color.Transparent;
+            l1.BackColor = Theme.BgTop;
             card.Controls.Add(l1);
 
             proxyBox = NewTextBox(18, 36, 484);
@@ -496,7 +501,7 @@ namespace AiBypass
             l2.Text = "Откуда брать актуальный адрес (raw-ссылка на файл в GitHub)";
             l2.SetBounds(18, 72, 480, 18);
             l2.ForeColor = Theme.Muted;
-            l2.BackColor = Color.Transparent;
+            l2.BackColor = Theme.BgTop;
             card.Controls.Add(l2);
 
             sourceBox = NewTextBox(18, 92, 484);
@@ -515,7 +520,7 @@ namespace AiBypass
             hint.Text = "Всё остальное настроено заранее: галочек и списков больше нет.";
             hint.SetBounds(18, 172, 484, 18);
             hint.ForeColor = Theme.Muted;
-            hint.BackColor = Color.Transparent;
+            hint.BackColor = Theme.BgTop;
             hint.Font = new Font("Segoe UI", 8f);
             card.Controls.Add(hint);
         }
@@ -523,7 +528,7 @@ namespace AiBypass
         private static void BuildLog()
         {
             CardPanel card = new CardPanel();
-            card.SetBounds(16, 222, W - 32, HeightOpen - 240);
+            card.SetBounds(16, 222, W - 32, (HeightOpen - 350) - 238);
             settingsPanel.Controls.Add(card);
 
             log = new TextBox();
@@ -607,7 +612,7 @@ namespace AiBypass
         {
             if (Relay.IsRunning)
             {
-                bigButton.Text = "Включено";
+                bigButton.Text = "Выключить";
                 bigButton.ColorA = Color.FromArgb(52, 66, 96);
                 bigButton.ColorB = Color.FromArgb(36, 44, 66);
                 bigButton.Glow = false;
