@@ -14,9 +14,10 @@ namespace AiBypass
 {
     public enum ServiceStatus
     {
-        Works,
-        Listed,
-        Unsupported
+        Works,        // через прокси работает, напрямую нет или хуже
+        Listed,       // домены в списке сервиса есть, но сейчас прокси их не обслуживает
+        Unsupported,  // сервис прокси не обслуживает вовсе
+        DoNotEnable   // через прокси ЛОМАЕТСЯ: страница идёт из-за границы, а её запросы - из РФ
     }
 
     public class Service
@@ -60,8 +61,8 @@ namespace AiBypass
 
             new Service(
                 "Gemini / Google AI",
-                ServiceStatus.Works,
-                "работает",
+                ServiceStatus.DoNotEnable,
+                "не включать: страница идёт с прокси, а запросы и вход - напрямую из РФ, Google видит разные сессии и отвечает «не удалось обработать запрос»",
                 new string[]
                 {
                     "gemini.google.com", "aistudio.google.com", "notebooklm.google.com",
@@ -131,6 +132,21 @@ namespace AiBypass
             get { return All.Length; }
         }
 
+        // домены сервисов, которые по умолчанию включены
+        public static List<string> DefaultDomains()
+        {
+            List<string> outp = new List<string>();
+            for (int i = 0; i < All.Length; i++)
+            {
+                if (!DefaultOn(All[i])) { continue; }
+                for (int j = 0; j < All[i].Domains.Length; j++)
+                {
+                    if (!outp.Contains(All[i].Domains[j])) { outp.Add(All[i].Domains[j]); }
+                }
+            }
+            return outp;
+        }
+
         public static List<string> AllDomains()
         {
             List<string> outp = new List<string>();
@@ -150,7 +166,14 @@ namespace AiBypass
             string mark = "";
             if (s.Status == ServiceStatus.Listed) { mark = "  — не отвечает сейчас"; }
             else if (s.Status == ServiceStatus.Unsupported) { mark = "  — нужен туннель"; }
+            else if (s.Status == ServiceStatus.DoNotEnable) { mark = "  — НЕ включать, ломает вход"; }
             return s.Name + "  ·  " + s.Domains.Length + " доменов" + mark;
+        }
+
+        // включено ли по умолчанию: всё, что не ломается через прокси
+        public static bool DefaultOn(Service s)
+        {
+            return s.Status != ServiceStatus.DoNotEnable;
         }
     }
 }

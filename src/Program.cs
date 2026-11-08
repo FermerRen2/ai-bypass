@@ -135,7 +135,7 @@ namespace AiBypass
                                 Console.WriteLine("применено: " + args[1] + ", доменов " + domains.Count);
                                 return 0;
                             }
-                            string[] all = Services.AllDomains().ToArray();
+                            string[] all = Services.DefaultDomains().ToArray();
                             Core.ApplyHosts(args[1], all);
                             Console.WriteLine("применено: " + args[1] + ", доменов " + all.Length);
                             return 0;

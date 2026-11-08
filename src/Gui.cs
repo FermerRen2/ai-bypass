@@ -284,7 +284,7 @@ namespace AiBypass
             card.Controls.Add(bNone);
 
             Label legend = new Label();
-            legend.Text = "Серый текст справа — предупреждение: такой сервис сейчас не работает через прокси.";
+            legend.Text = "Серый текст справа — предупреждение. Gemini через прокси ломается: страница из Европы, запросы из РФ.";
             legend.SetBounds(18, 244, 680, 18);
             legend.ForeColor = Theme.Muted;
             legend.Font = new Font("Segoe UI", 8f);
@@ -422,8 +422,11 @@ namespace AiBypass
 
             if (!fromFile)
             {
-                // по умолчанию включено всё
-                for (int i = 0; i < Services.Count; i++) { serviceList.SetItemChecked(i, true); }
+                // по умолчанию включено всё, кроме сервисов, которые через прокси ломаются
+                for (int i = 0; i < Services.Count; i++)
+                {
+                    serviceList.SetItemChecked(i, Services.DefaultOn(Services.All[i]));
+                }
             }
         }
 
@@ -431,6 +434,14 @@ namespace AiBypass
         {
             for (int i = 0; i < serviceList.Items.Count; i++) { serviceList.SetItemChecked(i, true); }
             SaveSelection();
+            for (int i = 0; i < Services.Count; i++)
+            {
+                Service s = Services.All[i];
+                if (s.Status == ServiceStatus.DoNotEnable)
+                {
+                    Write("Обрати внимание: " + s.Name + " через прокси работать не будет — " + s.Note + ".");
+                }
+            }
         }
 
         private static void OnSelectNone(object sender, EventArgs e)
@@ -502,6 +513,18 @@ namespace AiBypass
             string ip = ipBox.Text.Trim();
             try
             {
+                // про сервисы, которые через прокси ломаются, говорим прямо перед применением
+                for (int i = 0; i < Services.Count; i++)
+                {
+                    if (!serviceList.GetItemChecked(i)) { continue; }
+                    Service s = Services.All[i];
+                    if (s.Status == ServiceStatus.DoNotEnable)
+                    {
+                        Write("ВНИМАНИЕ: " + s.Name + " включён через прокси — " + s.Note + ".");
+                        Write("Обычно его надо держать выключенным: он работает напрямую, без прокси.");
+                    }
+                }
+
                 string[] domains = SelectedDomains();
                 Core.ApplyHosts(ip, domains);
                 SaveSelection();
