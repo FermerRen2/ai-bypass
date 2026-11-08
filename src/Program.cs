@@ -92,6 +92,7 @@ namespace AiBypass
                             {
                                 new string[] { "chatgpt.com", "/robots.txt" },
                                 new string[] { "gemini.google.com", "/" },
+                                new string[] { "geminiweb-pa.clients6.google.com", "/v1/processSession" },
                                 new string[] { "open.spotify.com", "/" },
                                 new string[] { "grok.com", "/" }
                             };

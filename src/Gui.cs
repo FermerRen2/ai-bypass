@@ -508,10 +508,14 @@ namespace AiBypass
             Write("Проверяю " + ip + " (система не меняется, только замер)...");
             Application.DoEvents();
 
+            // Проверять надо не только страницу, но и бэкенд, через который Gemini
+            // реально разговаривает с моделью: без него страница открывается,
+            // а запросы не уходят.
             string[][] tests = new string[][]
             {
                 new string[] { "chatgpt.com", "/robots.txt" },
                 new string[] { "gemini.google.com", "/" },
+                new string[] { "geminiweb-pa.clients6.google.com", "/v1/processSession" },
                 new string[] { "open.spotify.com", "/" },
                 new string[] { "grok.com", "/" }
             };
@@ -520,7 +524,7 @@ namespace AiBypass
                 string code = Core.CheckSiteWithCert(ip, tests[i][0], tests[i][1], 9000);
                 Write("  " + tests[i][0] + " -> " + code + "  (" + Core.Verdict(code) + ")");
             }
-            Write("200 - страница открылась; 401 - просто нет ключа; 403 - челлендж Cloudflare, браузер пройдёт.");
+            Write("200 - открылось; 401 - нет ключа; 403 - челлендж Cloudflare; ошибка TLS у clients6 - этот адрес бэкенд Gemini НЕ обслуживает.");
         }
 
         private static void OnApply(object sender, EventArgs e)
