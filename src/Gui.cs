@@ -1,7 +1,8 @@
-﻿// AiBypass — окно в духе Happ: тёмное, одна большая кнопка, всё лишнее спрятано.
+﻿// AiBypass — оформление окна.
 //
-// На главном экране только состояние и кнопка включения. Прокси, хосты и журнал
-// лежат под «Настройками» и по умолчанию не мешают.
+// Главный экран: градиентный фон, живое свечение вокруг кнопки, одна большая кнопка.
+// Никаких галочек и списков: всё работает сразу. Настройки (свой прокси, журнал)
+// открываются по ссылке внизу и по умолчанию не мешают.
 
 using System;
 using System.Collections.Generic;
@@ -14,59 +15,195 @@ namespace AiBypass
 {
     internal static class Theme
     {
-        public static readonly Color Page = Color.FromArgb(11, 12, 16);
-        public static readonly Color Card = Color.FromArgb(20, 22, 28);
-        public static readonly Color Border = Color.FromArgb(35, 40, 50);
-        public static readonly Color Text = Color.FromArgb(230, 233, 239);
-        public static readonly Color Muted = Color.FromArgb(139, 147, 167);
+        public static readonly Color BgTop = Color.FromArgb(15, 17, 30);
+        public static readonly Color BgBottom = Color.FromArgb(7, 8, 13);
+        public static readonly Color Card = Color.FromArgb(22, 25, 38);
+        public static readonly Color Border = Color.FromArgb(40, 46, 66);
+        public static readonly Color Text = Color.FromArgb(237, 240, 248);
+        public static readonly Color Muted = Color.FromArgb(132, 141, 168);
 
-        public static readonly Color Accent = Color.FromArgb(107, 91, 255);
-        public static readonly Color AccentHover = Color.FromArgb(126, 112, 255);
-        public static readonly Color Neutral = Color.FromArgb(30, 33, 42);
-        public static readonly Color NeutralHover = Color.FromArgb(42, 46, 58);
+        public static readonly Color AccentA = Color.FromArgb(126, 92, 255);
+        public static readonly Color AccentB = Color.FromArgb(64, 190, 255);
+        public static readonly Color Green = Color.FromArgb(58, 226, 145);
+    }
 
-        public static readonly Color Green = Color.FromArgb(43, 217, 124);
+    internal static class Ui
+    {
+        public static GraphicsPath Round(Rectangle r, int radius)
+        {
+            GraphicsPath p = new GraphicsPath();
+            int d = radius * 2;
+            if (d > r.Height) { d = r.Height; }
+            if (d <= 0) { p.AddRectangle(r); return p; }
+            p.AddArc(r.X, r.Y, d, d, 180, 90);
+            p.AddArc(r.Right - d, r.Y, d, d, 270, 90);
+            p.AddArc(r.Right - d, r.Bottom - d, d, d, 0, 90);
+            p.AddArc(r.X, r.Bottom - d, d, d, 90, 90);
+            p.CloseFigure();
+            return p;
+        }
+    }
+
+    // Кнопка с градиентом, свечением и плавным наведением
+    internal class GlowButton : Button
+    {
+        public Color ColorA = Theme.AccentA;
+        public Color ColorB = Theme.AccentB;
+        public Color TextColor = Color.White;
+        public int Radius = 26;
+        public bool Glow = true;
+        public float Pulse = 0f;
+        private float hoverT;
+        private bool hover;
+
+        public GlowButton()
+        {
+            SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint |
+                     ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw |
+                     ControlStyles.SupportsTransparentBackColor, true);
+            FlatStyle = FlatStyle.Flat;
+            FlatAppearance.BorderSize = 0;
+            BackColor = Color.Transparent;
+            Cursor = Cursors.Hand;
+            Font = new Font("Segoe UI Semibold", 12.5f, FontStyle.Bold);
+        }
+
+        protected override void OnMouseEnter(EventArgs e) { hover = true; Invalidate(); base.OnMouseEnter(e); }
+        protected override void OnMouseLeave(EventArgs e) { hover = false; Invalidate(); base.OnMouseLeave(e); }
+
+        public void Step()
+        {
+            float target = hover ? 1f : 0f;
+            hoverT += (target - hoverT) * 0.25f;
+        }
+
+        protected override void OnPaint(PaintEventArgs pe)
+        {
+            Graphics g = pe.Graphics;
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+
+            Rectangle r = new Rectangle(0, 0, Width - 1, Height - 1);
+
+            if (Glow)
+            {
+                float a = 0.20f + Pulse * 0.22f + hoverT * 0.12f;
+                for (int i = 7; i >= 1; i--)
+                {
+                    int grow = i * 3;
+                    Rectangle gr = new Rectangle(r.X - grow, r.Y - grow, r.Width + grow * 2, r.Height + grow * 2);
+                    int alpha = (int)(a * 255f / (i * 1.6f));
+                    if (alpha < 3) { continue; }
+                    using (GraphicsPath gp = Ui.Round(gr, Radius + grow))
+                    using (SolidBrush b = new SolidBrush(Color.FromArgb(alpha, ColorA)))
+                    {
+                        g.FillPath(b, gp);
+                    }
+                }
+            }
+
+            using (GraphicsPath path = Ui.Round(r, Radius))
+            {
+                using (LinearGradientBrush br = new LinearGradientBrush(
+                    new Point(0, 0), new Point(Width, Height), ColorA, ColorB))
+                {
+                    ColorBlend blend = new ColorBlend(3);
+                    blend.Colors = new Color[] { ColorA, Mix(ColorA, ColorB, 0.5f), ColorB };
+                    blend.Positions = new float[] { 0f, 0.5f, 1f };
+                    br.InterpolationColors = blend;
+                    g.FillPath(br, path);
+                }
+
+                using (GraphicsPath hp = Ui.Round(new Rectangle(r.X + 2, r.Y + 2, r.Width - 4, r.Height / 2), Radius - 2))
+                using (LinearGradientBrush hb = new LinearGradientBrush(
+                    new Rectangle(0, 0, Math.Max(1, Width), Math.Max(1, Height / 2)),
+                    Color.FromArgb(60 + (int)(hoverT * 40), 255, 255, 255), Color.FromArgb(0, 255, 255, 255),
+                    LinearGradientMode.Vertical))
+                {
+                    g.FillPath(hb, hp);
+                }
+            }
+
+            TextRenderer.DrawText(g, Text, Font, ClientRectangle, TextColor,
+                TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
+        }
+
+        public static Color Mix(Color a, Color b, float t)
+        {
+            return Color.FromArgb(
+                (int)(a.R + (b.R - a.R) * t),
+                (int)(a.G + (b.G - a.G) * t),
+                (int)(a.B + (b.B - a.B) * t));
+        }
     }
 
     internal class FlatButton : Button
     {
-        public Color FillNormal = Theme.Neutral;
-        public Color FillHover = Theme.NeutralHover;
-        public Color TextColor = Theme.Text;
-        public int Radius = 8;
-        public Color BackFill = Theme.Card;
+        public Color FillHover = Color.FromArgb(40, 46, 66);
+        public Color TextColor = Theme.Muted;
+        public int Radius = 9;
         private bool hover;
 
         public FlatButton()
         {
             SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint |
-                     ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
+                     ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw |
+                     ControlStyles.SupportsTransparentBackColor, true);
             FlatStyle = FlatStyle.Flat;
             FlatAppearance.BorderSize = 0;
+            BackColor = Color.Transparent;
             Cursor = Cursors.Hand;
-            Font = new Font("Segoe UI", 9f, FontStyle.Regular);
+            Font = new Font("Segoe UI", 9f);
         }
 
         protected override void OnMouseEnter(EventArgs e) { hover = true; Invalidate(); base.OnMouseEnter(e); }
         protected override void OnMouseLeave(EventArgs e) { hover = false; Invalidate(); base.OnMouseLeave(e); }
-        protected override void OnEnabledChanged(EventArgs e) { Invalidate(); base.OnEnabledChanged(e); }
 
         protected override void OnPaint(PaintEventArgs pe)
         {
-            using (SolidBrush bg = new SolidBrush(BackFill)) { pe.Graphics.FillRectangle(bg, ClientRectangle); }
-
             pe.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-            Color fill = !Enabled ? Color.FromArgb(40, 44, 54) : (hover ? FillHover : FillNormal);
-
-            using (GraphicsPath path = Shapes.Rounded(new Rectangle(0, 0, Width - 1, Height - 1), Radius))
-            using (SolidBrush brush = new SolidBrush(fill))
+            if (hover)
             {
-                pe.Graphics.FillPath(brush, path);
+                using (GraphicsPath p = Ui.Round(new Rectangle(0, 0, Width - 1, Height - 1), Radius))
+                using (SolidBrush b = new SolidBrush(FillHover)) { pe.Graphics.FillPath(b, p); }
             }
+            TextRenderer.DrawText(pe.Graphics, Text, Font, ClientRectangle, TextColor,
+                TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
+        }
+    }
 
-            Color tc = Enabled ? TextColor : Theme.Muted;
-            TextRenderer.DrawText(pe.Graphics, Text, Font, ClientRectangle, tc,
-                TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
+    // Кнопки окна: символы рисуем сами, шрифтовые глифы на разных системах выглядят по-разному
+    internal class WinButton : Button
+    {
+        public bool IsClose = false;
+        private bool hover;
+
+        public WinButton()
+        {
+            SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint |
+                     ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw |
+                     ControlStyles.SupportsTransparentBackColor, true);
+            FlatStyle = FlatStyle.Flat;
+            FlatAppearance.BorderSize = 0;
+            BackColor = Color.Transparent;
+            Cursor = Cursors.Hand;
+        }
+
+        protected override void OnMouseEnter(EventArgs e) { hover = true; Invalidate(); base.OnMouseEnter(e); }
+        protected override void OnMouseLeave(EventArgs e) { hover = false; Invalidate(); base.OnMouseLeave(e); }
+
+        protected override void OnPaint(PaintEventArgs pe)
+        {
+            Graphics g = pe.Graphics;
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            if (hover)
+            {
+                Color fill = IsClose ? Color.FromArgb(90, 40, 52) : Color.FromArgb(40, 46, 66);
+                using (GraphicsPath p = Ui.Round(new Rectangle(0, 0, Width - 1, Height - 1), 8))
+                using (SolidBrush b = new SolidBrush(fill)) { g.FillPath(b, p); }
+            }
+            Color col = hover ? Color.White : Theme.Muted;
+            TextRenderer.DrawText(g, Text, Font, ClientRectangle, col,
+                TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
         }
     }
 
@@ -76,13 +213,13 @@ namespace AiBypass
         {
             SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint |
                      ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
-            BackColor = Theme.Card;
+            BackColor = Color.Transparent;
         }
 
         protected override void OnPaint(PaintEventArgs pe)
         {
             pe.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-            using (GraphicsPath path = Shapes.Rounded(new Rectangle(0, 0, Width - 1, Height - 1), 12))
+            using (GraphicsPath path = Ui.Round(new Rectangle(0, 0, Width - 1, Height - 1), 14))
             {
                 using (SolidBrush b = new SolidBrush(Theme.Card)) { pe.Graphics.FillPath(b, path); }
                 using (Pen p = new Pen(Theme.Border, 1)) { pe.Graphics.DrawPath(p, path); }
@@ -91,39 +228,25 @@ namespace AiBypass
         }
     }
 
-    internal static class Shapes
-    {
-        public static GraphicsPath Rounded(Rectangle r, int radius)
-        {
-            GraphicsPath path = new GraphicsPath();
-            int d = radius * 2;
-            if (d > r.Height) { d = r.Height; }
-            path.AddArc(r.X, r.Y, d, d, 180, 90);
-            path.AddArc(r.Right - d, r.Y, d, d, 270, 90);
-            path.AddArc(r.Right - d, r.Bottom - d, d, d, 0, 90);
-            path.AddArc(r.X, r.Bottom - d, d, d, 90, 90);
-            path.CloseFigure();
-            return path;
-        }
-    }
-
     internal static class Gui
     {
         private const int W = 560;
-        private const int HeightClosed = 360;
-        private const int HeightOpen = 940;
+        private const int HeightClosed = 400;
+        private const int HeightOpen = 900;
 
         private static Form form;
         private static Label stateLabel;
         private static Label detailLabel;
-        private static FlatButton bigButton;
+        private static GlowButton bigButton;
         private static FlatButton settingsLink;
         private static Panel settingsPanel;
+        private static Timer anim;
 
         private static TextBox proxyBox;
         private static TextBox sourceBox;
-        private static CheckedListBox serviceList;
         private static TextBox log;
+
+        private static float pulsePhase;
         private static NotifyIcon tray;
         private static bool reallyExit;
 
@@ -134,41 +257,35 @@ namespace AiBypass
             form.ClientSize = new Size(W, HeightClosed);
             form.StartPosition = FormStartPosition.CenterScreen;
             form.FormBorderStyle = FormBorderStyle.None;
-            form.MaximizeBox = false;
-            form.MinimizeBox = true;
+            form.BackColor = Theme.BgBottom;
+            form.Font = new Font("Segoe UI", 9f);
             try
             {
-                using (System.IO.Stream st = System.Reflection.Assembly.GetExecutingAssembly()
+                typeof(Control).GetProperty("DoubleBuffered",
+                    System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
+                    .SetValue(form, true, null);
+            }
+            catch { }
+            try
+            {
+                using (Stream st = System.Reflection.Assembly.GetExecutingAssembly()
                     .GetManifestResourceStream("AiBypass.app.ico"))
                 {
                     if (st != null) { form.Icon = new Icon(st); }
                 }
             }
             catch { }
-            form.Paint += new PaintEventHandler(delegate (object s, PaintEventArgs e)
-            {
-                // тонкая рамка вместо стандартной белой от Windows
-                using (Pen p = new Pen(Theme.Border, 1))
-                {
-                    e.Graphics.DrawRectangle(p, 0, 0, form.ClientSize.Width - 1, form.ClientSize.Height - 1);
-                }
-            });
+
+            form.Paint += new PaintEventHandler(PaintBackground);
             form.Resize += new EventHandler(delegate (object s, EventArgs e) { form.Invalidate(); });
-            form.BackColor = Theme.Page;
-            form.Font = new Font("Segoe UI", 9f);
 
             BuildHeader();
             BuildMain();
             BuildSettings();
             BuildLog();
 
-            // Закрытие окна больше НЕ убивает релей: иначе браузеры, запущенные с ключом
-            // --proxy-server, остаются с настройкой на мёртвый порт и перестают открывать
-            // вообще всё - и гит, и ютуб, и вообще любые сайты.
-            // Окно прячется в трей, релей продолжает работать.
             form.FormClosing += new FormClosingEventHandler(delegate (object s, FormClosingEventArgs e)
             {
-
                 bool stopping = e.CloseReason == CloseReason.WindowsShutDown ||
                                 e.CloseReason == CloseReason.TaskManagerClosing;
 
@@ -176,11 +293,12 @@ namespace AiBypass
                 {
                     e.Cancel = true;
                     form.Hide();
-
                     if (tray != null)
                     {
                         tray.Visible = true;
-                        tray.ShowBalloonTip(2000, "AiBypass", "Программа свёрнута. Прокси продолжает работать. Выход — через значок в трее.", ToolTipIcon.Info);
+                        tray.ShowBalloonTip(2500, "AiBypass",
+                            "Свёрнуто в трей, прокси работает. Выход — правой кнопкой по значку.",
+                            ToolTipIcon.Info);
                     }
                     return;
                 }
@@ -190,8 +308,6 @@ namespace AiBypass
 
             BuildTray();
 
-            // самолечение: если в системе остался наш прокси от прошлого запуска (программа
-            // упала, компьютер перезагрузили), он ведёт на мёртвый порт и ломает вообще все сайты.
             try
             {
                 string sp = Core.SystemProxy();
@@ -199,8 +315,6 @@ namespace AiBypass
                 {
                     Core.SetSystemProxy("");
                 }
-
-                // если прошлый запуск оставил браузеры с нашим ключом прокси - вернуть их в норму
                 if (Core.BrowsersMarked())
                 {
                     List<string> heal = new List<string>();
@@ -211,9 +325,6 @@ namespace AiBypass
             }
             catch { }
 
-            LoadSelection();
-
-            // при каждом запуске тянем актуальный адрес прокси из своего файла на GitHub
             string src = Core.LoadProxySource();
             sourceBox.Text = src;
             if (src.Length > 0)
@@ -221,16 +332,233 @@ namespace AiBypass
                 List<string> lines = new List<string>();
                 string got = Core.FetchProxyFromSource(src, lines);
                 WriteAll(lines);
-                if (got.Length > 0)
-                {
-                    proxyBox.Text = got;
-                    Core.SaveProxyUrl(got);
-                }
+                if (got.Length > 0) { proxyBox.Text = got; Core.SaveProxyUrl(got); }
             }
             if (proxyBox.Text.Trim().Length == 0) { proxyBox.Text = Core.LoadProxyUrl(); }
 
             RefreshState();
+
+            anim = new Timer();
+            anim.Interval = 40;
+            anim.Tick += new EventHandler(delegate (object s, EventArgs e)
+            {
+                pulsePhase += 0.045f;
+                if (pulsePhase > (float)(Math.PI * 2)) { pulsePhase -= (float)(Math.PI * 2); }
+                bigButton.Pulse = (float)((Math.Sin(pulsePhase) + 1) / 2);
+                bigButton.Step();
+                bigButton.Invalidate();
+            });
+            anim.Start();
+
             Application.Run(form);
+        }
+
+        private static void PaintBackground(object sender, PaintEventArgs e)
+        {
+            Graphics g = e.Graphics;
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+
+            Rectangle full = new Rectangle(0, 0, form.ClientSize.Width, form.ClientSize.Height);
+            using (LinearGradientBrush bg = new LinearGradientBrush(
+                new Rectangle(0, 0, Math.Max(1, full.Width), Math.Max(1, full.Height)),
+                Theme.BgTop, Theme.BgBottom, LinearGradientMode.Vertical))
+            {
+                g.FillRectangle(bg, full);
+            }
+
+            float k = 0.55f + bigButton.Pulse * 0.25f;
+            int cx = full.Width / 2;
+            int cy = 250;
+            for (int i = 8; i >= 1; i--)
+            {
+                int rad = i * 46;
+                int alpha = (int)(9 * k);
+                if (alpha < 2) { continue; }
+                using (GraphicsPath p = new GraphicsPath())
+                {
+                    p.AddEllipse(cx - rad, cy - rad, rad * 2, rad * 2);
+                    using (PathGradientBrush pb = new PathGradientBrush(p))
+                    {
+                        pb.CenterColor = Color.FromArgb(alpha, Theme.AccentA);
+                        pb.SurroundColors = new Color[] { Color.FromArgb(0, Theme.AccentA) };
+                        g.FillPath(pb, p);
+                    }
+                }
+            }
+
+            using (Pen border = new Pen(Color.FromArgb(70, 255, 255, 255), 1))
+            {
+                g.DrawRectangle(border, 0, 0, full.Width - 1, full.Height - 1);
+            }
+        }
+
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        private static extern bool ReleaseCapture();
+
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        private static extern IntPtr SendMessage(IntPtr hWnd, int msg, int wParam, int lParam);
+
+        private static void DragWindow(object sender, MouseEventArgs e)
+        {
+            if (e.Button != MouseButtons.Left) { return; }
+            ReleaseCapture();
+            SendMessage(form.Handle, 0xA1, 0x2, 0);
+        }
+
+        private static void BuildHeader()
+        {
+            Panel header = new Panel();
+            header.SetBounds(0, 0, W, 92);
+            header.BackColor = Color.Transparent;
+            header.MouseDown += new MouseEventHandler(DragWindow);
+            header.Paint += new PaintEventHandler(delegate (object s, PaintEventArgs e)
+            {
+                e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+                using (Font f1 = new Font("Segoe UI Semibold", 17f, FontStyle.Bold))
+                using (Font f2 = new Font("Segoe UI", 8.5f))
+                {
+                    TextRenderer.DrawText(e.Graphics, "AiBypass", f1, new Point(24, 22), Theme.Text);
+                    TextRenderer.DrawText(e.Graphics, "Gemini и другие сервисы — одной кнопкой",
+                        f2, new Point(25, 56), Theme.Muted);
+                }
+            });
+
+            WinButton bMin = new WinButton();
+            bMin.Text = "_";
+            bMin.Font = new Font("Segoe UI", 12f, FontStyle.Bold);
+            bMin.SetBounds(W - 92, 22, 32, 30);
+            bMin.Click += new EventHandler(delegate (object s, EventArgs e) { form.WindowState = FormWindowState.Minimized; });
+            header.Controls.Add(bMin);
+
+            WinButton bClose = new WinButton();
+            bClose.IsClose = true;
+            bClose.Text = "x";
+            bClose.Font = new Font("Segoe UI", 9.5f, FontStyle.Bold);
+            bClose.SetBounds(W - 54, 22, 32, 30);
+            bClose.Click += new EventHandler(delegate (object s, EventArgs e) { form.Close(); });
+            header.Controls.Add(bClose);
+
+            form.Controls.Add(header);
+        }
+
+        private static void BuildMain()
+        {
+            stateLabel = new Label();
+            stateLabel.SetBounds(24, 108, W - 48, 30);
+            stateLabel.Font = new Font("Segoe UI Semibold", 14f, FontStyle.Bold);
+            stateLabel.ForeColor = Theme.Text;
+            stateLabel.BackColor = Color.Transparent;
+            form.Controls.Add(stateLabel);
+
+            detailLabel = new Label();
+            detailLabel.SetBounds(25, 142, W - 50, 44);
+            detailLabel.Font = new Font("Segoe UI", 8.5f);
+            detailLabel.ForeColor = Theme.Muted;
+            detailLabel.BackColor = Color.Transparent;
+            form.Controls.Add(detailLabel);
+
+            bigButton = new GlowButton();
+            bigButton.SetBounds(28, 200, W - 56, 86);
+            bigButton.Click += new EventHandler(OnBigButton);
+            form.Controls.Add(bigButton);
+
+            settingsLink = new FlatButton();
+            settingsLink.SetBounds(24, 306, 140, 32);
+            settingsLink.Text = "Настройки";
+            settingsLink.Font = new Font("Segoe UI", 8.5f);
+            settingsLink.Click += new EventHandler(OnToggleSettings);
+            form.Controls.Add(settingsLink);
+        }
+
+        private static void BuildSettings()
+        {
+            settingsPanel = new Panel();
+            settingsPanel.SetBounds(0, 350, W, HeightOpen - 350);
+            settingsPanel.BackColor = Color.Transparent;
+            settingsPanel.Visible = false;
+            form.Controls.Add(settingsPanel);
+
+            CardPanel card = new CardPanel();
+            card.SetBounds(16, 0, W - 32, 210);
+            settingsPanel.Controls.Add(card);
+
+            Label l1 = new Label();
+            l1.Text = "Адрес прокси: socks5://ЛОГИН:ПАРОЛЬ@АДРЕС:ПОРТ";
+            l1.SetBounds(18, 16, 480, 18);
+            l1.ForeColor = Theme.Muted;
+            l1.BackColor = Color.Transparent;
+            card.Controls.Add(l1);
+
+            proxyBox = NewTextBox(18, 36, 484);
+            card.Controls.Add(proxyBox);
+
+            Label l2 = new Label();
+            l2.Text = "Откуда брать актуальный адрес (raw-ссылка на файл в GitHub)";
+            l2.SetBounds(18, 72, 480, 18);
+            l2.ForeColor = Theme.Muted;
+            l2.BackColor = Color.Transparent;
+            card.Controls.Add(l2);
+
+            sourceBox = NewTextBox(18, 92, 484);
+            card.Controls.Add(sourceBox);
+
+            FlatButton bSave = NewButton("Сохранить", 18, 130, 140, OnSaveSettings);
+            card.Controls.Add(bSave);
+
+            FlatButton bTest = NewButton("Проверить", 168, 130, 130, OnProxyTest);
+            card.Controls.Add(bTest);
+
+            FlatButton bPull = NewButton("Обновить с GitHub", 308, 130, 194, OnPullProxy);
+            card.Controls.Add(bPull);
+
+            Label hint = new Label();
+            hint.Text = "Всё остальное настроено заранее: галочек и списков больше нет.";
+            hint.SetBounds(18, 172, 484, 18);
+            hint.ForeColor = Theme.Muted;
+            hint.BackColor = Color.Transparent;
+            hint.Font = new Font("Segoe UI", 8f);
+            card.Controls.Add(hint);
+        }
+
+        private static void BuildLog()
+        {
+            CardPanel card = new CardPanel();
+            card.SetBounds(16, 222, W - 32, HeightOpen - 240);
+            settingsPanel.Controls.Add(card);
+
+            log = new TextBox();
+            log.SetBounds(16, 14, W - 66, card.Height - 28);
+            log.Multiline = true;
+            log.ScrollBars = ScrollBars.Vertical;
+            log.ReadOnly = true;
+            log.BorderStyle = BorderStyle.None;
+            log.BackColor = Theme.Card;
+            log.ForeColor = Theme.Muted;
+            log.Font = new Font("Consolas", 8.5f);
+            card.Controls.Add(log);
+        }
+
+        private static TextBox NewTextBox(int left, int top, int width)
+        {
+            TextBox tb = new TextBox();
+            tb.SetBounds(left, top, width, 26);
+            tb.BorderStyle = BorderStyle.FixedSingle;
+            tb.BackColor = Color.FromArgb(30, 34, 50);
+            tb.ForeColor = Theme.Text;
+            tb.Font = new Font("Consolas", 9f);
+            return tb;
+        }
+
+        private static FlatButton NewButton(string text, int left, int top, int width, EventHandler h)
+        {
+            FlatButton b = new FlatButton();
+            b.Text = text;
+            b.SetBounds(left, top, width, 32);
+            b.FillHover = Color.FromArgb(46, 52, 76);
+            b.TextColor = Theme.Text;
+            b.Font = new Font("Segoe UI", 9f);
+            b.Click += h;
+            return b;
         }
 
         private static void BuildTray()
@@ -240,21 +568,21 @@ namespace AiBypass
             {
                 g.SmoothingMode = SmoothingMode.AntiAlias;
                 g.Clear(Color.Transparent);
-                using (SolidBrush b = new SolidBrush(Theme.Accent)) { g.FillEllipse(b, 1, 1, 14, 14); }
+                using (LinearGradientBrush b = new LinearGradientBrush(
+                    new Rectangle(0, 0, 16, 16), Theme.AccentA, Theme.AccentB, 45f))
+                {
+                    g.FillEllipse(b, 1, 1, 14, 14);
+                }
             }
-            Icon ic = Icon.FromHandle(bmp.GetHicon());
-
             tray = new NotifyIcon();
-            tray.Icon = ic;
+            tray.Icon = Icon.FromHandle(bmp.GetHicon());
             tray.Text = "AiBypass";
             tray.Visible = false;
 
             ContextMenuStrip menu = new ContextMenuStrip();
             menu.Items.Add("Показать", null, new EventHandler(delegate (object s, EventArgs e)
             {
-                form.Show();
-                form.WindowState = FormWindowState.Normal;
-                form.Activate();
+                form.Show(); form.WindowState = FormWindowState.Normal; form.Activate();
             }));
             menu.Items.Add("Выключить прокси", null, new EventHandler(delegate (object s, EventArgs e)
             {
@@ -271,235 +599,39 @@ namespace AiBypass
             tray.ContextMenuStrip = menu;
             tray.DoubleClick += new EventHandler(delegate (object s, EventArgs e)
             {
-                form.Show();
-                form.WindowState = FormWindowState.Normal;
-                form.Activate();
+                form.Show(); form.WindowState = FormWindowState.Normal; form.Activate();
             });
         }
-
-        // ---------- сборка окна ----------
-
-        [System.Runtime.InteropServices.DllImport("user32.dll")]
-        private static extern bool ReleaseCapture();
-
-        [System.Runtime.InteropServices.DllImport("user32.dll")]
-        private static extern IntPtr SendMessage(IntPtr hWnd, int msg, int wParam, int lParam);
-
-        private static void DragWindow(object sender, MouseEventArgs e)
-        {
-            if (e.Button != MouseButtons.Left) { return; }
-            ReleaseCapture();
-            SendMessage(form.Handle, 0xA1, 0x2, 0); // WM_NCLBUTTONDOWN, HTCAPTION
-        }
-
-        private static void BuildHeader()
-        {
-            Panel header = new Panel();
-            header.SetBounds(0, 0, W, 84);
-            header.MouseDown += new MouseEventHandler(DragWindow);
-            header.Paint += new PaintEventHandler(delegate (object s, PaintEventArgs e)
-            {
-                using (SolidBrush b = new SolidBrush(Theme.Page)) { e.Graphics.FillRectangle(b, header.ClientRectangle); }
-                using (Font f1 = new Font("Segoe UI", 16f, FontStyle.Bold))
-                using (Font f2 = new Font("Segoe UI", 8.5f))
-                {
-                    TextRenderer.DrawText(e.Graphics, "AiBypass", f1, new Point(20, 20), Theme.Text);
-                    TextRenderer.DrawText(e.Graphics, "обход блокировок для Gemini и других сервисов",
-                        f2, new Point(21, 50), Theme.Muted);
-                }
-            });
-            // свои кнопки вместо виндовых
-            FlatButton bMin = new FlatButton();
-            bMin.Text = "—";
-            bMin.SetBounds(W - 84, 16, 32, 30);
-            bMin.Radius = 6;
-            bMin.Font = new Font("Segoe UI", 10f, FontStyle.Bold);
-            bMin.TextColor = Theme.Muted;
-            bMin.BackFill = Theme.Page;
-            bMin.Click += new EventHandler(delegate (object s, EventArgs e) { form.WindowState = FormWindowState.Minimized; });
-            header.Controls.Add(bMin);
-
-            FlatButton bClose = new FlatButton();
-            bClose.Text = "✕";
-            bClose.SetBounds(W - 46, 16, 32, 30);
-            bClose.Radius = 6;
-            bClose.Font = new Font("Segoe UI", 9f, FontStyle.Bold);
-            bClose.TextColor = Theme.Muted;
-            bClose.FillNormal = Theme.Page;
-            bClose.FillHover = Color.FromArgb(60, 30, 36);
-            bClose.BackFill = Theme.Page;
-            bClose.Click += new EventHandler(delegate (object s, EventArgs e) { form.Close(); });
-            header.Controls.Add(bClose);
-
-            form.Controls.Add(header);
-        }
-
-        private static void BuildMain()
-        {
-            stateLabel = new Label();
-            stateLabel.SetBounds(20, 94, W - 40, 30);
-            stateLabel.Font = new Font("Segoe UI", 13f, FontStyle.Bold);
-            stateLabel.ForeColor = Theme.Text;
-            form.Controls.Add(stateLabel);
-
-            detailLabel = new Label();
-            detailLabel.SetBounds(21, 126, W - 42, 40);
-            detailLabel.Font = new Font("Segoe UI", 8.5f);
-            detailLabel.ForeColor = Theme.Muted;
-            form.Controls.Add(detailLabel);
-
-            bigButton = new FlatButton();
-            bigButton.SetBounds(20, 174, W - 40, 84);
-            bigButton.Radius = 24;
-            bigButton.Font = new Font("Segoe UI", 13f, FontStyle.Bold);
-            bigButton.FillNormal = Theme.Accent;
-            bigButton.FillHover = Theme.AccentHover;
-            bigButton.TextColor = Color.White;
-            bigButton.BackFill = Theme.Page;
-            bigButton.Click += new EventHandler(OnBigButton);
-            form.Controls.Add(bigButton);
-
-            settingsLink = new FlatButton();
-            settingsLink.SetBounds(20, 270, 130, 30);
-            settingsLink.Radius = 8;
-            settingsLink.Text = "Настройки";
-            settingsLink.Font = new Font("Segoe UI", 8.5f);
-            settingsLink.TextColor = Theme.Muted;
-            settingsLink.BackFill = Theme.Page;
-            settingsLink.Click += new EventHandler(OnToggleSettings);
-            form.Controls.Add(settingsLink);
-        }
-
-        private static void BuildSettings()
-        {
-            settingsPanel = new Panel();
-            settingsPanel.SetBounds(0, 308, W, HeightOpen - 308);
-            settingsPanel.BackColor = Theme.Page;
-            settingsPanel.Visible = false;
-            form.Controls.Add(settingsPanel);
-
-            CardPanel card = new CardPanel();
-            card.SetBounds(12, 0, W - 24, 300);
-            settingsPanel.Controls.Add(card);
-
-            Label l1 = new Label();
-            l1.Text = "Адрес прокси: socks5://ЛОГИН:ПАРОЛЬ@АДРЕС:ПОРТ";
-            l1.SetBounds(16, 16, 500, 18);
-            l1.ForeColor = Theme.Muted;
-            card.Controls.Add(l1);
-
-            proxyBox = NewTextBox(16, 36, 496);
-            card.Controls.Add(proxyBox);
-
-            Label l2 = new Label();
-            l2.Text = "Откуда брать актуальный адрес (raw-ссылка на файл в GitHub)";
-            l2.SetBounds(16, 70, 500, 18);
-            l2.ForeColor = Theme.Muted;
-            card.Controls.Add(l2);
-
-            sourceBox = NewTextBox(16, 90, 496);
-            card.Controls.Add(sourceBox);
-
-            FlatButton bSave = NewButton("Сохранить", 16, 124, 140, OnSaveSettings);
-            card.Controls.Add(bSave);
-
-            FlatButton bTest = NewButton("Проверить", 164, 124, 130, OnProxyTest);
-            card.Controls.Add(bTest);
-
-            FlatButton bPull = NewButton("Обновить с GitHub", 302, 124, 210, OnPullProxy);
-            card.Controls.Add(bPull);
-
-            Label l3 = new Label();
-            l3.Text = "Хосты: что заворачивать на адрес commonnet (отдельная схема, не прокси)";
-            l3.SetBounds(16, 162, 500, 18);
-            l3.ForeColor = Theme.Muted;
-            card.Controls.Add(l3);
-
-            serviceList = new CheckedListBox();
-            serviceList.SetBounds(16, 182, 496, 62);
-            serviceList.CheckOnClick = true;
-            serviceList.BorderStyle = BorderStyle.FixedSingle;
-            serviceList.BackColor = Theme.Neutral;
-            serviceList.ForeColor = Theme.Text;
-            serviceList.Font = new Font("Segoe UI", 8.5f);
-            for (int i = 0; i < Services.Count; i++) { serviceList.Items.Add(Services.Caption(Services.All[i])); }
-            card.Controls.Add(serviceList);
-
-            FlatButton bApplyHosts = NewButton("Записать хосты", 16, 252, 160, OnApplyHosts);
-            card.Controls.Add(bApplyHosts);
-
-            FlatButton bOffHosts = NewButton("Снять хосты", 184, 252, 150, OnOffHosts);
-            card.Controls.Add(bOffHosts);
-        }
-
-        private static void BuildLog()
-        {
-            CardPanel card = new CardPanel();
-            card.SetBounds(12, 312, W - 24, HeightOpen - 330);
-            settingsPanel.Controls.Add(card);
-
-            log = new TextBox();
-            log.SetBounds(14, 14, W - 52, card.Height - 28);
-            log.Multiline = true;
-            log.ScrollBars = ScrollBars.Vertical;
-            log.ReadOnly = true;
-            log.BorderStyle = BorderStyle.None;
-            log.BackColor = Theme.Card;
-            log.ForeColor = Theme.Muted;
-            log.Font = new Font("Consolas", 8.5f);
-            card.Controls.Add(log);
-        }
-
-        private static TextBox NewTextBox(int left, int top, int width)
-        {
-            TextBox tb = new TextBox();
-            tb.SetBounds(left, top, width, 26);
-            tb.BorderStyle = BorderStyle.FixedSingle;
-            tb.BackColor = Theme.Neutral;
-            tb.ForeColor = Theme.Text;
-            tb.Font = new Font("Consolas", 9f);
-            return tb;
-        }
-
-        private static FlatButton NewButton(string text, int left, int top, int width, EventHandler h)
-        {
-            FlatButton b = new FlatButton();
-            b.Text = text;
-            b.SetBounds(left, top, width, 30);
-            b.BackFill = Theme.Card;
-            b.Click += h;
-            return b;
-        }
-
-        // ---------- состояние ----------
 
         private static void RefreshState()
         {
             if (Relay.IsRunning)
             {
-                bigButton.Text = "Выключить";
-                bigButton.FillNormal = Theme.Neutral;
-                bigButton.FillHover = Theme.NeutralHover;
-                bigButton.TextColor = Theme.Text;
+                bigButton.Text = "Включено";
+                bigButton.ColorA = Color.FromArgb(52, 66, 96);
+                bigButton.ColorB = Color.FromArgb(36, 44, 66);
+                bigButton.Glow = false;
 
-                stateLabel.Text = "Включено";
+                stateLabel.Text = "Прокси включён";
                 stateLabel.ForeColor = Theme.Green;
-                detailLabel.Text = "Google идёт через " + Relay.CurrentUpstream + "\r\nОстальные сайты — напрямую, как обычно";
+                detailLabel.Text = "Google идёт через " + Relay.CurrentUpstream +
+                                   "\r\nОстальные сайты — напрямую, как обычно";
             }
             else
             {
                 bigButton.Text = "Включить";
-                bigButton.FillNormal = Theme.Accent;
-                bigButton.FillHover = Theme.AccentHover;
-                bigButton.TextColor = Color.White;
+                bigButton.ColorA = Theme.AccentA;
+                bigButton.ColorB = Theme.AccentB;
+                bigButton.Glow = true;
 
                 stateLabel.Text = "Выключено";
-                stateLabel.ForeColor = Theme.Muted;
+                stateLabel.ForeColor = Theme.Text;
                 string p = proxyBox == null ? "" : proxyBox.Text.Trim();
                 detailLabel.Text = p.Length > 0
-                    ? "Прокси задан: " + Core.MaskProxy(p) + "\r\nНажми «Включить», чтобы пустить через него Google"
+                    ? "Прокси: " + Core.MaskProxy(p) + "\r\nНажми «Включить» — браузеры откроют Gemini сами"
                     : "Прокси не задан — открой «Настройки» и вставь адрес";
             }
+            if (form != null) { form.Invalidate(); }
         }
 
         private static void WriteAll(List<string> lines)
@@ -513,13 +645,12 @@ namespace AiBypass
             log.AppendText("[" + DateTime.Now.ToString("HH:mm:ss") + "] " + s + Environment.NewLine);
         }
 
-        // ---------- действия ----------
-
         private static void OnToggleSettings(object sender, EventArgs e)
         {
             settingsPanel.Visible = !settingsPanel.Visible;
             form.ClientSize = new Size(W, settingsPanel.Visible ? HeightOpen : HeightClosed);
             settingsLink.Text = settingsPanel.Visible ? "Свернуть" : "Настройки";
+            form.Invalidate();
         }
 
         private static void OnBigButton(object sender, EventArgs e)
@@ -529,16 +660,11 @@ namespace AiBypass
                 if (Relay.IsRunning) { TurnOff(); return; }
 
                 string url = proxyBox.Text.Trim();
+                if (url.Length == 0) { url = Core.LoadProxyUrl(); proxyBox.Text = url; }
                 if (url.Length == 0)
                 {
-                    // страховка: даже если поле почему-то пустое, берём вшитый в программу адрес
-                    url = Core.LoadProxyUrl();
-                    proxyBox.Text = url;
-                }
-                if (url.Length == 0)
-                {
-                    Write("Прокси не задан: в этой сборке адрес не вшит. Открой «Настройки» и вставь адрес.");
-                    OnToggleSettings(null, null);
+                    Write("Прокси не задан. Открой «Настройки» и вставь адрес.");
+                    if (!settingsPanel.Visible) { OnToggleSettings(null, null); }
                     return;
                 }
 
@@ -548,7 +674,7 @@ namespace AiBypass
                 WriteAll(lines);
                 Core.SetSystemProxy("127.0.0.1:" + Relay.LocalPort);
                 Core.SaveProxyUrl(url);
-                Write("Включено. Перезапускаю браузеры — они сами откроют Gemini.");
+                Write("Включено. Перезапускаю браузеры — они откроют Gemini.");
                 RefreshState();
                 Application.DoEvents();
 
@@ -570,9 +696,6 @@ namespace AiBypass
         {
             Relay.Stop(null);
             Core.SetSystemProxy("");
-
-            // браузеры, запущенные нами с ключом прокси, надо вернуть в норму:
-            // иначе они останутся с настройкой на мёртвый порт
             if (Core.BrowsersMarked())
             {
                 Write("Выключено. Перезапускаю браузеры без прокси.");
@@ -585,7 +708,7 @@ namespace AiBypass
             }
             else
             {
-                Write("Выключено. Прокси снят.");
+                Write("Выключено.");
                 RefreshState();
             }
         }
@@ -623,8 +746,7 @@ namespace AiBypass
                 string src = sourceBox.Text.Trim();
                 if (src.Length == 0)
                 {
-                    Write("Ссылка на файл не задана, и это не проблема: актуальный адрес прокси уже вшит");
-                    Write("в программу. Если захочешь менять прокси удалённо - вставь ссылку на файл выше и нажми «Сохранить».");
+                    Write("Ссылка не задана, и это нормально: актуальный адрес уже вшит в программу.");
                     return;
                 }
                 List<string> lines = new List<string>();
@@ -636,75 +758,6 @@ namespace AiBypass
                 Core.SaveProxySource(src);
                 Write("Адрес обновлён: " + Core.MaskProxy(got));
                 RefreshState();
-            }
-            catch (Exception ex) { Write("Не вышло: " + ex.Message); }
-        }
-
-        // ---------- хосты ----------
-
-        private static void LoadSelection()
-        {
-            bool fromFile = false;
-            try
-            {
-                if (File.Exists(Core.SettingsPath))
-                {
-                    fromFile = true;
-                    string[] names = File.ReadAllLines(Core.SettingsPath);
-                    for (int i = 0; i < Services.Count; i++)
-                    {
-                        bool on = false;
-                        for (int k = 0; k < names.Length; k++)
-                        {
-                            if (names[k].Trim() == Services.All[i].Name) { on = true; break; }
-                        }
-                        serviceList.SetItemChecked(i, on);
-                    }
-                }
-            }
-            catch { }
-            if (!fromFile)
-            {
-                for (int i = 0; i < Services.Count; i++)
-                {
-                    serviceList.SetItemChecked(i, Services.DefaultOn(Services.All[i]));
-                }
-            }
-        }
-
-        private static string[] SelectedDomains()
-        {
-            List<string> outp = new List<string>();
-            for (int i = 0; i < Services.Count; i++)
-            {
-                if (!serviceList.GetItemChecked(i)) { continue; }
-                for (int j = 0; j < Services.All[i].Domains.Length; j++)
-                {
-                    if (!outp.Contains(Services.All[i].Domains[j])) { outp.Add(Services.All[i].Domains[j]); }
-                }
-            }
-            return outp.ToArray();
-        }
-
-        private static void OnApplyHosts(object sender, EventArgs e)
-        {
-            try
-            {
-                string ip = Core.CurrentProxyIp();
-                if (ip.Length == 0) { Write("Адрес commonnet неизвестен — сначала впиши его в строку адреса."); return; }
-                string[] doms = SelectedDomains();
-                Core.ApplyHosts(ip, doms);
-                Write("Записал " + doms.Length + " доменов на " + ip + ".");
-            }
-            catch (Exception ex) { Write("Не вышло: " + ex.Message); }
-        }
-
-        private static void OnOffHosts(object sender, EventArgs e)
-        {
-            try
-            {
-                Core.OffHosts();
-                Write("Блок из hosts снят.");
             }
             catch (Exception ex) { Write("Не вышло: " + ex.Message); }
         }
