@@ -231,7 +231,11 @@ namespace AiBypass
                 {
                     Relay.Stop(null);
                     Core.SetSystemProxy("");
-                    Write("Прокси выключен, браузеры снова ходят напрямую.");
+                    Write("Прокси выключен. Перезапускаю браузеры без прокси.");
+                    Application.DoEvents();
+                    List<string> bl2 = new List<string>();
+                    Core.RestartProcesses(Core.BrowserProcesses, bl2, false, null, "");
+                    for (int i = 0; i < bl2.Count; i++) { Write("  " + bl2[i]); }
                     RefreshProxyState();
                     return;
                 }
@@ -245,7 +249,12 @@ namespace AiBypass
                 Core.SetSystemProxy("127.0.0.1:" + Relay.LocalPort);
                 Core.SaveProxyUrl(url);
                 Write("Готово. Домены Google идут через " + ps.Display + ", остальное - напрямую.");
-                Write("Перезапусти браузер, чтобы он подхватил настройку прокси.");
+                Write("Перезапускаю браузеры с явным указанием прокси (системную настройку Яндекс и Chrome не берут).");
+                Application.DoEvents();
+                List<string> bl = new List<string>();
+                Core.RestartProcesses(Core.BrowserProcesses, bl, false,
+                    "https://gemini.google.com/app", "--proxy-server=http://127.0.0.1:" + Relay.LocalPort);
+                for (int i = 0; i < bl.Count; i++) { Write("  " + bl[i]); }
                 RefreshProxyState();
             }
             catch (Exception ex) { Write("Не вышло: " + ex.Message); }

@@ -174,11 +174,11 @@ namespace AiBypass
             int nMethods = cs.ReadByte();
             byte[] methods = new byte[nMethods];
             ReadExact(cs, methods, nMethods);
-            cs.Write(new byte[] { 0x05, 0x00 }, 0, 2); // пускаем без пароля
+            cs.Write(new byte[] { 0x05, 0x00 }, 0, 2);
 
             byte[] head = new byte[4];
             if (!ReadExact(cs, head, 4)) { client.Close(); return; }
-            if (head[1] != 0x01) { Reply(cs, 0x07); client.Close(); return; } // только CONNECT
+            if (head[1] != 0x01) { Reply(cs, 0x07); client.Close(); return; }
 
             string host;
             if (head[3] == 0x01)
@@ -206,11 +206,19 @@ namespace AiBypass
             if (!ReadExact(cs, portBytes, 2)) { client.Close(); return; }
             int port = portBytes[0] * 256 + portBytes[1];
 
-            TcpClient target = Connect(host, port);
-            if (target == null) { Reply(cs, 0x05); client.Close(); return; }
-
+            // Отвечаем "соединено" сразу: дальше надо подсмотреть имя сайта
+            // в первых байтах, а браузер без ответа их не пришлёт.
             Reply(cs, 0x00);
-            Pump(cs, target.GetStream());
+
+            byte[] buffered;
+            string sniffed = SniffHostname(cs, out buffered, 2000);
+            string target = sniffed.Length > 0 ? sniffed : host;
+
+            TcpClient t = Connect(target, port);
+            if (t == null) { client.Close(); return; }
+            NetworkStream ts = t.GetStream();
+            if (buffered.Length > 0) { ts.Write(buffered, 0, buffered.Length); ts.Flush(); }
+            Pump(cs, ts);
         }
 
         private static void Reply(NetworkStream cs, byte code)
@@ -241,31 +249,32 @@ namespace AiBypass
             if (parts.Length < 2) { client.Close(); return; }
 
             string method = parts[0];
-            string target = parts[1];
+            string targetUrl = parts[1];
 
             if (method.Equals("CONNECT", StringComparison.OrdinalIgnoreCase))
             {
                 string host; int port;
-                if (!SplitHostPort(target, out host, out port)) { client.Close(); return; }
+                if (!SplitHostPort(targetUrl, out host, out port)) { client.Close(); return; }
+                if (port == 0) { port = 443; }
 
-                TcpClient upConn = Connect(host, port);
-                if (upConn == null)
-                {
-                    byte[] err = Encoding.ASCII.GetBytes("HTTP/1.1 502 Bad Gateway\r\n\r\n");
-                    cs.Write(err, 0, err.Length);
-                    client.Close();
-                    return;
-                }
                 byte[] ok = Encoding.ASCII.GetBytes("HTTP/1.1 200 Connection established\r\n\r\n");
                 cs.Write(ok, 0, ok.Length);
                 cs.Flush();
-                Pump(cs, upConn.GetStream());
+
+                byte[] buffered;
+                string sniffed = SniffHostname(cs, out buffered, 2000);
+                string route = sniffed.Length > 0 ? sniffed : host;
+
+                TcpClient upConn = Connect(route, port);
+                if (upConn == null) { client.Close(); return; }
+                NetworkStream ts = upConn.GetStream();
+                if (buffered.Length > 0) { ts.Write(buffered, 0, buffered.Length); ts.Flush(); }
+                Pump(cs, ts);
                 return;
             }
 
-            // обычный http:// запрос
             string hostOnly; int portOnly;
-            string url = target;
+            string url = targetUrl;
             if (url.StartsWith("http://", StringComparison.OrdinalIgnoreCase)) { url = url.Substring(7); }
             int slash = url.IndexOf('/');
             string authority = slash < 0 ? url : url.Substring(0, slash);
@@ -273,8 +282,8 @@ namespace AiBypass
             if (!SplitHostPort(authority, out hostOnly, out portOnly)) { client.Close(); return; }
             if (portOnly == 0) { portOnly = 80; }
 
-            TcpClient up = Connect(hostOnly, portOnly);
-            if (up == null)
+            TcpClient up2 = Connect(hostOnly, portOnly);
+            if (up2 == null)
             {
                 byte[] err = Encoding.ASCII.GetBytes("HTTP/1.1 502 Bad Gateway\r\n\r\n");
                 cs.Write(err, 0, err.Length);
@@ -284,15 +293,15 @@ namespace AiBypass
 
             StringBuilder req = new StringBuilder();
             req.Append(method).Append(' ').Append(path).Append(" HTTP/1.1\r\n");
-            string[] lines = head.Split(new string[] { "\r\n" }, StringSplitOptions.RemoveEmptyEntries);
-            for (int i = 1; i < lines.Length; i++)
+            string[] hlines = head.Split(new string[] { "\r\n" }, StringSplitOptions.RemoveEmptyEntries);
+            for (int i = 1; i < hlines.Length; i++)
             {
-                if (lines[i].StartsWith("Proxy-", StringComparison.OrdinalIgnoreCase)) { continue; }
-                req.Append(lines[i]).Append("\r\n");
+                if (hlines[i].StartsWith("Proxy-", StringComparison.OrdinalIgnoreCase)) { continue; }
+                req.Append(hlines[i]).Append("\r\n");
             }
             req.Append("\r\n");
             byte[] rb = Encoding.ASCII.GetBytes(req.ToString());
-            NetworkStream us = up.GetStream();
+            NetworkStream us = up2.GetStream();
             us.Write(rb, 0, rb.Length);
             us.Flush();
             Pump(cs, us);
@@ -428,6 +437,87 @@ namespace AiBypass
                 return c;
             }
             catch { return null; }
+        }
+
+        // Браузеры (Chrome, Яндекс, Opera) сами разрешают имя в адрес и присылают релею
+        // уже IP - по нему не понять, Google это или нет. Поэтому смотрим в первые байты
+        // запроса: в TLS-рукопожатии открытым текстом лежит имя сайта (SNI), а в обычном
+        // HTTP - заголовок Host. То же самое делает Happ и любой нормальный клиент.
+        private static string SniffHostname(NetworkStream cs, out byte[] buffered, int waitMs)
+        {
+            buffered = new byte[0];
+            try
+            {
+                cs.ReadTimeout = waitMs;
+                byte[] buf = new byte[4096];
+                int n = cs.Read(buf, 0, buf.Length);
+                if (n <= 0) { return ""; }
+                byte[] data = new byte[n];
+                Array.Copy(buf, data, n);
+                buffered = data;
+
+                if (n > 5 && data[0] == 0x16)
+                {
+                    string sni = ParseSni(data, n);
+                    if (sni.Length > 0) { return sni; }
+                }
+                if (n > 4 && data[0] >= 0x41 && data[0] <= 0x5A)
+                {
+                    string txt = Encoding.ASCII.GetString(data, 0, Math.Min(n, 1024));
+                    int hp = txt.IndexOf("Host:", StringComparison.OrdinalIgnoreCase);
+                    if (hp >= 0)
+                    {
+                        int start = hp + 5;
+                        int end = txt.IndexOf('\r', start);
+                        if (end < 0) { end = Math.Min(txt.Length, start + 200); }
+                        string hostValue = txt.Substring(start, end - start).Trim();
+                        int colon = hostValue.IndexOf(':');
+                        if (colon > 0) { hostValue = hostValue.Substring(0, colon); }
+                        return hostValue;
+                    }
+                }
+            }
+            catch { }
+            return "";
+        }
+
+        private static string ParseSni(byte[] d, int len)
+        {
+            try
+            {
+                int p = 5; // record header
+                if (p + 4 > len) { return ""; }
+                int handshakeType = d[p];
+                if (handshakeType != 0x01) { return ""; } // не ClientHello
+                p += 4;
+                p += 2 + 32; // version + random
+                int sidLen = d[p]; p += 1 + sidLen;
+                int csLen = d[p] * 256 + d[p + 1]; p += 2 + csLen;
+                int cmLen = d[p]; p += 1 + cmLen;
+                if (p + 2 > len) { return ""; }
+                int extTotal = d[p] * 256 + d[p + 1]; p += 2;
+                int end = Math.Min(len, p + extTotal);
+                while (p + 4 <= end)
+                {
+                    int type = d[p] * 256 + d[p + 1];
+                    int size = d[p + 2] * 256 + d[p + 3];
+                    p += 4;
+                    if (type == 0x0000) // server_name
+                    {
+                        int q = p + 2;
+                        int nameType = d[q]; q += 1;
+                        if (nameType == 0)
+                        {
+                            int nameLen = d[q] * 256 + d[q + 1]; q += 2;
+                            if (q + nameLen <= len) { return Encoding.ASCII.GetString(d, q, nameLen); }
+                        }
+                        return "";
+                    }
+                    p += size;
+                }
+            }
+            catch { }
+            return "";
         }
 
         private static void Pump(NetworkStream a, NetworkStream b)

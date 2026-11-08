@@ -623,6 +623,15 @@ namespace AiBypass
         // Возвращает имена процессов, которые были закрыты и запущены заново.
         public static List<string> RestartProcesses(string[] names, List<string> log, bool openGemini)
         {
+            return RestartProcesses(names, log, openGemini, null, "");
+        }
+
+        // extraArgs - что добавить к запуску (например, --proxy-server=...):
+        // Яндекс и Chrome не берут системную настройку прокси, если она меняется при работающем
+        // браузере, а с явным ключом запуска - берут.
+        public static List<string> RestartProcesses(string[] names, List<string> log, bool openGemini,
+            string openUrl, string extraArgs)
+        {
             List<string> done = new List<string>();
 
             for (int i = 0; i < names.Length; i++)
@@ -684,9 +693,11 @@ namespace AiBypass
                 {
                     try
                     {
-                        Process.Start(exe);
+                        string a = extraArgs == null ? "" : extraArgs;
+                        if (openUrl != null && openUrl.Length > 0) { a = (a + " \"" + openUrl + "\"").Trim(); }
+                        Process.Start(exe, a);
                         done.Add(name);
-                        log.Add("  запустил заново: " + exe);
+                        log.Add("  запустил заново: " + exe + (a.Length > 0 ? " " + a : ""));
                     }
                     catch (Exception ex) { log.Add("  не смог запустить заново: " + Short(ex.Message)); }
                 }
