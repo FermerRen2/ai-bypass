@@ -13,6 +13,8 @@ nrpt-state-*.json
 *-log.txt
 crash.txt
 proxy.txt
+proxy-source.txt
+selected.txt
 
 # системный мусор
 Thumbs.db
