@@ -531,7 +531,13 @@ namespace AiBypass
                 string url = proxyBox.Text.Trim();
                 if (url.Length == 0)
                 {
-                    Write("Прокси не задан. Открой «Настройки» и вставь адрес.");
+                    // страховка: даже если поле почему-то пустое, берём вшитый в программу адрес
+                    url = Core.LoadProxyUrl();
+                    proxyBox.Text = url;
+                }
+                if (url.Length == 0)
+                {
+                    Write("Прокси не задан: в этой сборке адрес не вшит. Открой «Настройки» и вставь адрес.");
                     OnToggleSettings(null, null);
                     return;
                 }
