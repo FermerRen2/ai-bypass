@@ -856,6 +856,72 @@ namespace AiBypass
             catch { }
         }
 
+        // прячет пароль в адресе прокси, чтобы он не светился в окне и в скриншотах
+        public static string MaskProxy(string url)
+        {
+            if (string.IsNullOrEmpty(url)) { return ""; }
+            int sc = url.IndexOf("://");
+            int at = url.LastIndexOf('@');
+            if (sc < 0 || at < 0 || at < sc) { return url; }
+            string head = url.Substring(0, sc + 3);
+            string auth = url.Substring(sc + 3, at - sc - 3);
+            int colon = auth.IndexOf(':');
+            if (colon > 0) { auth = auth.Substring(0, colon) + ":***"; }
+            else if (auth.Length > 0) { auth = "***"; }
+            return head + auth + url.Substring(at);
+        }
+
+        public static string ProxySourcePath
+        {
+            get { return Path.Combine(AppDir, "proxy-source.txt"); }
+        }
+
+        public static string LoadProxySource()
+        {
+            try { if (File.Exists(ProxySourcePath)) { return File.ReadAllText(ProxySourcePath).Trim(); } }
+            catch { }
+            return "";
+        }
+
+        public static void SaveProxySource(string url)
+        {
+            try { File.WriteAllText(ProxySourcePath, url, Encoding.UTF8); }
+            catch { }
+        }
+
+        // Забирает адрес прокси из файла на GitHub: первая непустая строка, которая
+        // разбирается как адрес прокси. Нужна, чтобы менять прокси не пересобирая прогу.
+        public static string FetchProxyFromSource(string url, List<string> log)
+        {
+            if (string.IsNullOrEmpty(url)) { return ""; }
+            try
+            {
+                if (log != null) { log.Add("тяну адрес прокси: " + url); }
+                string text = HttpGet(url, 20000);
+                if (text == null) { return ""; }
+                string[] lines = text.Split(new char[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+                for (int i = 0; i < lines.Length; i++)
+                {
+                    string line = lines[i].Trim();
+                    if (line.Length == 0 || line.StartsWith("#")) { continue; }
+                    if (line.IndexOf("://") < 0) { line = "socks5://" + line; }
+                    try
+                    {
+                        ProxySettings ps = ProxySettings.Parse(line);
+                        if (log != null) { log.Add("  нашёл: " + ps.Display); }
+                        return line;
+                    }
+                    catch { }
+                }
+                if (log != null) { log.Add("  в файле нет строки с адресом прокси"); }
+            }
+            catch (Exception ex)
+            {
+                if (log != null) { log.Add("  не смог скачать: " + Short(ex.Message)); }
+            }
+            return "";
+        }
+
         // ---------- правила DNS (NRPT) ----------
 
         public static string RunPowerShell(string script)
