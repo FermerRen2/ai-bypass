@@ -1,0 +1,18 @@
+# собранное: не храним в репозитории, оно есть в Releases
+*.exe
+*.pdb
+
+# локальные снимки hosts и правила DNS — это состояние конкретной машины
+backup/
+hosts-backup-*.txt
+nrpt-backup-*.json
+nrpt-backup-*.txt
+nrpt-state-*.json
+
+# журналы работы: в них бывают личные пути и адреса
+*-log.txt
+crash.txt
+
+# системный мусор
+Thumbs.db
+.DS_Store
