@@ -914,6 +914,15 @@ namespace AiBypass
         {
             try { if (File.Exists(ProxySourcePath)) { return File.ReadAllText(ProxySourcePath).Trim(); } }
             catch { }
+            try
+            {
+                if (Defaults.ProxySource.Length > 0)
+                {
+                    SaveProxySource(Defaults.ProxySource);
+                    return Defaults.ProxySource;
+                }
+            }
+            catch { }
             return "";
         }
 

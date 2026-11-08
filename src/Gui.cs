@@ -615,7 +615,12 @@ namespace AiBypass
             try
             {
                 string src = sourceBox.Text.Trim();
-                if (src.Length == 0) { Write("Укажи ссылку на файл с адресом прокси."); return; }
+                if (src.Length == 0)
+                {
+                    Write("Ссылка на файл не задана, и это не проблема: актуальный адрес прокси уже вшит");
+                    Write("в программу. Если захочешь менять прокси удалённо - вставь ссылку на файл выше и нажми «Сохранить».");
+                    return;
+                }
                 List<string> lines = new List<string>();
                 string got = Core.FetchProxyFromSource(src, lines);
                 WriteAll(lines);

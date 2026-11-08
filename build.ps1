@@ -50,7 +50,17 @@ $ico = Join-Path $src 'app.ico'
 # При сборке с -Release вшивается пустая строка, чтобы в публичный exe ничего не попало.
 $proxyFile = Join-Path $root 'proxy.txt'
 $baked = ''
-if (-not $Release -and (Test-Path $proxyFile)) { $baked = (Get-Content $proxyFile -Raw).Trim() }
+if (-not $Release -and (Test-Path $proxyFile)) {
+    $tmp = Get-Content $proxyFile -Raw
+    if ($tmp) { $baked = $tmp.Trim() }
+}
+
+$sourceFile = Join-Path $root 'proxy-source.txt'
+$bakedSource = ''
+if (-not $Release -and (Test-Path $sourceFile)) {
+    $tmp2 = Get-Content $sourceFile -Raw
+    if ($tmp2) { $bakedSource = $tmp2.Trim() }
+}
 $gen = Join-Path $src 'Generated.Defaults.cs'
 $genCode = @"
 // Файл создаётся сборкой, править руками не нужно.
@@ -59,6 +69,7 @@ namespace AiBypass
     internal static class Defaults
     {
         public const string ProxyUrl = "$baked";
+        public const string ProxySource = "$bakedSource";
     }
 }
 "@
