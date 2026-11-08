@@ -139,12 +139,13 @@ namespace AiBypass
         private static TextBox dnsBox;
         private static TextBox log;
         private static CheckedListBox serviceList;
+        private static CheckBox restartBrowser;
 
         public static void Run()
         {
             form = new Form();
             form.Text = "AiBypass";
-            form.ClientSize = new Size(740, 812);
+            form.ClientSize = new Size(740, 856);
             form.StartPosition = FormStartPosition.CenterScreen;
             form.FormBorderStyle = FormBorderStyle.FixedSingle;
             form.MaximizeBox = false;
@@ -210,7 +211,7 @@ namespace AiBypass
         {
             CardPanel card = new CardPanel();
             card.Title = "ПОДКЛЮЧЕНИЕ";
-            card.SetBounds(12, 124, 716, 162);
+            card.SetBounds(12, 124, 716, 200);
             form.Controls.Add(card);
 
             Label l0 = new Label();
@@ -256,13 +257,27 @@ namespace AiBypass
             FlatButton bOff = MakeButton("Выключить обход", 492, 109, 200, 28, OnOff);
             bOff.TextColor = Theme.Danger;
             card.Controls.Add(bOff);
+
+            restartBrowser = new CheckBox();
+            restartBrowser.Text = "Перезапускать браузер после «Применить» (иначе он держит старые адреса)";
+            restartBrowser.SetBounds(18, 148, 460, 22);
+            restartBrowser.ForeColor = Theme.Text;
+            restartBrowser.Checked = true;
+            card.Controls.Add(restartBrowser);
+
+            FlatButton bFix = MakeButton("Починить Gemini", 492, 144, 200, 30, OnFixGemini);
+            bFix.FillNormal = Theme.Accent;
+            bFix.FillHover = Theme.AccentHover;
+            bFix.TextColor = Color.White;
+            bFix.Font = new Font("Segoe UI", 9f, FontStyle.Bold);
+            card.Controls.Add(bFix);
         }
 
         private static void BuildServicesCard()
         {
             CardPanel card = new CardPanel();
             card.Title = "ЧТО ЗАВОРАЧИВАТЬ НА ПРОКСИ";
-            card.SetBounds(12, 298, 716, 268);
+            card.SetBounds(12, 336, 716, 268);
             form.Controls.Add(card);
 
             serviceList = new CheckedListBox();
@@ -295,7 +310,7 @@ namespace AiBypass
         {
             CardPanel card = new CardPanel();
             card.Title = "ЕСЛИ СЕРВИС ДАЁТ DNS-СЕРВЕРЫ, А НЕ ПРОКСИ-IP";
-            card.SetBounds(12, 578, 716, 106);
+            card.SetBounds(12, 616, 716, 106);
             form.Controls.Add(card);
 
             Label l = new Label();
@@ -320,7 +335,7 @@ namespace AiBypass
         private static void BuildLogCard()
         {
             CardPanel card = new CardPanel();
-            card.SetBounds(12, 696, 716, 106);
+            card.SetBounds(12, 734, 716, 106);
             form.Controls.Add(card);
 
             log = new TextBox();
@@ -530,8 +545,72 @@ namespace AiBypass
                 SaveSelection();
                 Write("Прописал " + domains.Length + " доменов на " + ip + ". Бэкап hosts сохранён.");
                 RefreshState();
+
+                if (restartBrowser.Checked)
+                {
+                    Write("Перезапускаю браузер: он держит свой DNS-кэш и старые соединения...");
+                    Application.DoEvents();
+                    List<string> logLines = new List<string>();
+                    List<string> done = Core.RestartProcesses(Core.BrowserProcesses, logLines, false);
+                    for (int i = 0; i < logLines.Count; i++) { Write("  " + logLines[i]); }
+                    if (done.Count == 0) { Write("  запущенных браузеров не нашёл - перезапусти сам, если открыт."); }
+                }
             }
             catch (Exception ex) { Write("Не вышло: " + ex.Message); }
+        }
+
+        // Одна кнопка на случай «Gemini открывается, но запросы не обрабатываются»:
+        // убираем Gemini с прокси, сбрасываем кэш DNS, перезапускаем браузер и открываем сайт.
+        private static void OnFixGemini(object sender, EventArgs e)
+        {
+            try
+            {
+                Write("--- Чиню Gemini ---");
+                string ip = ipBox.Text.Trim();
+                if (!Core.IsValidIp(ip)) { ip = Core.CurrentProxyIp(); }
+
+                string[] domains = DomainsWithoutGemini();
+                Write("Убираю Gemini с прокси, остальные сервисы оставляю (доменов: " + domains.Length + ").");
+                Core.ApplyHosts(ip, domains);
+                Core.FlushDns();
+
+                for (int i = 0; i < Services.Count; i++)
+                {
+                    if (Services.All[i].Name.IndexOf("Gemini", StringComparison.OrdinalIgnoreCase) >= 0)
+                    {
+                        serviceList.SetItemChecked(i, false);
+                    }
+                }
+                SaveSelection();
+                RefreshState();
+
+                Write("Перезапускаю браузер - это и есть аналог режима полёта на телефоне.");
+                Write("Если в браузере есть несохранённые формы, они пропадут.");
+                Application.DoEvents();
+
+                List<string> logLines = new List<string>();
+                List<string> done = Core.RestartProcesses(Core.BrowserProcesses, logLines, true);
+                for (int i = 0; i < logLines.Count; i++) { Write("  " + logLines[i]); }
+
+                if (done.Count == 0) { Write("  запущенных браузеров не нашёл - открой gemini.google.com вручную."); }
+                Write("Готово. В hosts " + Core.CurrentDomainCount() + " доменов, Gemini идёт напрямую.");
+            }
+            catch (Exception ex) { Write("Не вышло: " + ex.Message); }
+        }
+
+        // домены всех сервисов, кроме отмеченных как «не включать»
+        private static string[] DomainsWithoutGemini()
+        {
+            List<string> outp = new List<string>();
+            for (int i = 0; i < Services.Count; i++)
+            {
+                if (Services.All[i].Status == ServiceStatus.DoNotEnable) { continue; }
+                for (int j = 0; j < Services.All[i].Domains.Length; j++)
+                {
+                    if (!outp.Contains(Services.All[i].Domains[j])) { outp.Add(Services.All[i].Domains[j]); }
+                }
+            }
+            return outp.ToArray();
         }
 
         private static void OnOff(object sender, EventArgs e)

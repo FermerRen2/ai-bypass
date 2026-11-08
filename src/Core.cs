@@ -595,6 +595,120 @@ namespace AiBypass
             return "";
         }
 
+        // ---------- перезапуск браузера ----------
+
+        // Браузер держит свой DNS-кэш и пул открытых соединений в памяти: после смены адресов
+        // он продолжает ходить по старым. Закрыть процесс — единственный надёжный способ
+        // сбросить это без перезагрузки машины (на телефоне то же делает режим полёта).
+        public static readonly string[] BrowserProcesses = new string[]
+        {
+            "chrome", "msedge", "firefox", "opera", "brave", "vivaldi", "browser", "yandex"
+        };
+
+        public static List<string> RunningProcesses(string[] names)
+        {
+            List<string> found = new List<string>();
+            for (int i = 0; i < names.Length; i++)
+            {
+                try
+                {
+                    Process[] ps = Process.GetProcessesByName(names[i]);
+                    if (ps.Length > 0) { found.Add(names[i]); }
+                }
+                catch { }
+            }
+            return found;
+        }
+
+        // Возвращает имена процессов, которые были закрыты и запущены заново.
+        public static List<string> RestartProcesses(string[] names, List<string> log, bool openGemini)
+        {
+            List<string> done = new List<string>();
+
+            for (int i = 0; i < names.Length; i++)
+            {
+                string name = names[i];
+                Process[] ps;
+                try { ps = Process.GetProcessesByName(name); }
+                catch { continue; }
+                if (ps.Length == 0) { continue; }
+
+                string exe = "";
+                try
+                {
+                    for (int k = 0; k < ps.Length; k++)
+                    {
+                        try
+                        {
+                            if (ps[k].MainModule != null) { exe = ps[k].MainModule.FileName; break; }
+                        }
+                        catch { }
+                    }
+                }
+                catch { }
+
+                log.Add("закрываю " + name + (ps.Length > 1 ? " (" + ps.Length + " процессов)" : ""));
+
+                // сначала вежливо: просим окна закрыться, чтобы браузер сохранил сессию
+                for (int k = 0; k < ps.Length; k++)
+                {
+                    try { if (ps[k].MainWindowHandle != IntPtr.Zero) { ps[k].CloseMainWindow(); } }
+                    catch { }
+                }
+
+                DateTime deadline = DateTime.Now.AddSeconds(5);
+                while (DateTime.Now < deadline)
+                {
+                    bool alive = false;
+                    for (int k = 0; k < ps.Length; k++)
+                    {
+                        try { if (!ps[k].HasExited) { alive = true; break; } }
+                        catch { }
+                    }
+                    if (!alive) { break; }
+                    System.Threading.Thread.Sleep(300);
+                }
+
+                // что осталось — закрываем силой
+                int killed = 0;
+                for (int k = 0; k < ps.Length; k++)
+                {
+                    try { if (!ps[k].HasExited) { ps[k].Kill(); killed++; } }
+                    catch { }
+                }
+                if (killed > 0) { log.Add("  принудительно закрыто процессов: " + killed); }
+
+                System.Threading.Thread.Sleep(700);
+
+                if (exe.Length > 0)
+                {
+                    try
+                    {
+                        Process.Start(exe);
+                        done.Add(name);
+                        log.Add("  запустил заново: " + exe);
+                    }
+                    catch (Exception ex) { log.Add("  не смог запустить заново: " + Short(ex.Message)); }
+                }
+                else
+                {
+                    log.Add("  путь к exe не определился - запусти " + name + " сам");
+                }
+            }
+
+            if (openGemini)
+            {
+                try
+                {
+                    Process.Start("https://gemini.google.com/");
+                    log.Add("открыл gemini.google.com");
+                }
+                catch (Exception ex) { log.Add("не смог открыть сайт: " + Short(ex.Message)); }
+            }
+
+            return done;
+        }
+
         // ---------- правила DNS (NRPT) ----------
 
         public static string RunPowerShell(string script)

@@ -141,6 +141,45 @@ namespace AiBypass
                             return 0;
                         }
 
+                    case "--browsers":
+                        {
+                            List<string> run = Core.RunningProcesses(Core.BrowserProcesses);
+                            Console.WriteLine(run.Count == 0 ? "браузеры не запущены" : "запущены: " + string.Join(", ", run.ToArray()));
+                            return 0;
+                        }
+
+                    case "--restart-browser":
+                        {
+                            List<string> lines = new List<string>();
+                            List<string> done = Core.RestartProcesses(Core.BrowserProcesses, lines, false);
+                            for (int i = 0; i < lines.Count; i++) { Console.WriteLine(lines[i]); }
+                            Console.WriteLine("перезапущено: " + done.Count);
+                            return 0;
+                        }
+
+                    case "--restart-proc":
+                        {
+                            if (args.Length < 2) { Console.WriteLine("нужно имя процесса"); return 2; }
+                            List<string> lines = new List<string>();
+                            Core.RestartProcesses(new string[] { args[1] }, lines, false);
+                            for (int i = 0; i < lines.Count; i++) { Console.WriteLine(lines[i]); }
+                            return 0;
+                        }
+
+                    case "--fix-gemini":
+                        {
+                            string ip = Core.CurrentProxyIp();
+                            if (ip.Length == 0 && args.Length >= 2) { ip = args[1]; }
+                            if (ip.Length == 0) { Console.WriteLine("сейчас обход выключен - укажи адрес"); return 2; }
+                            List<string> domains = Services.DefaultDomains();
+                            Core.ApplyHosts(ip, domains.ToArray());
+                            Console.WriteLine("Gemini убран с прокси, доменов " + domains.Count + " на " + ip);
+                            List<string> lines = new List<string>();
+                            Core.RestartProcesses(Core.BrowserProcesses, lines, true);
+                            for (int i = 0; i < lines.Count; i++) { Console.WriteLine(lines[i]); }
+                            return 0;
+                        }
+
                     case "--off":
                         Core.OffHosts();
                         Console.WriteLine("блок снят");
@@ -211,6 +250,9 @@ namespace AiBypass
             Console.WriteLine("  --off                   снять блок из hosts");
             Console.WriteLine("  --find <ссылка|домен>   найти адрес прокси по ссылке на сервис");
             Console.WriteLine("  --github                найти адрес в репозитории commonnet");
+            Console.WriteLine("  --fix-gemini            убрать Gemini с прокси, сбросить кэш DNS и перезапустить браузер");
+            Console.WriteLine("  --restart-browser       перезапустить браузер (сбросить его кэш адресов)");
+            Console.WriteLine("  --browsers              какие браузеры сейчас запущены");
             Console.WriteLine("  --nrpt-set <ip,ip>      поставить правила DNS");
             Console.WriteLine("  --nrpt-off              снять правила DNS");
             Console.WriteLine("  --version               версия");
