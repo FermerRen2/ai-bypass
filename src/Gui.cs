@@ -124,6 +124,8 @@ namespace AiBypass
         private static TextBox sourceBox;
         private static CheckedListBox serviceList;
         private static TextBox log;
+        private static NotifyIcon tray;
+        private static bool reallyExit;
 
         public static void Run()
         {
@@ -141,14 +143,40 @@ namespace AiBypass
             BuildSettings();
             BuildLog();
 
+            // Закрытие окна больше НЕ убивает релей: иначе браузеры, запущенные с ключом
+            // --proxy-server, остаются с настройкой на мёртвый порт и перестают открывать
+            // вообще всё - и гит, и ютуб, и вообще любые сайты.
+            // Окно прячется в трей, релей продолжает работать.
             form.FormClosing += new FormClosingEventHandler(delegate (object s, FormClosingEventArgs e)
             {
-                if (Relay.IsRunning)
+                if (!reallyExit)
                 {
-                    Relay.Stop(null);
-                    try { Core.SetSystemProxy(""); } catch { }
+                    e.Cancel = true;
+                    form.Hide();
+                    if (tray != null)
+                    {
+                        tray.Visible = true;
+                        tray.ShowBalloonTip(2000, "AiBypass", "Программа свёрнута. Прокси продолжает работать. Выход — через значок в трее.", ToolTipIcon.Info);
+                    }
+                    return;
                 }
+                if (Relay.IsRunning) { Relay.Stop(null); }
+                try { Core.SetSystemProxy(""); } catch { }
             });
+
+            BuildTray();
+
+            // самолечение: если в системе остался наш прокси от прошлого запуска (программа
+            // упала, компьютер перезагрузили), он ведёт на мёртвый порт и ломает вообще все сайты.
+            try
+            {
+                string sp = Core.SystemProxy();
+                if (sp != null && sp.IndexOf("127.0.0.1", StringComparison.Ordinal) >= 0)
+                {
+                    Core.SetSystemProxy("");
+                }
+            }
+            catch { }
 
             LoadSelection();
 
@@ -170,6 +198,50 @@ namespace AiBypass
 
             RefreshState();
             Application.Run(form);
+        }
+
+        private static void BuildTray()
+        {
+            Bitmap bmp = new Bitmap(16, 16);
+            using (Graphics g = Graphics.FromImage(bmp))
+            {
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+                g.Clear(Color.Transparent);
+                using (SolidBrush b = new SolidBrush(Theme.Accent)) { g.FillEllipse(b, 1, 1, 14, 14); }
+            }
+            Icon ic = Icon.FromHandle(bmp.GetHicon());
+
+            tray = new NotifyIcon();
+            tray.Icon = ic;
+            tray.Text = "AiBypass";
+            tray.Visible = false;
+
+            ContextMenuStrip menu = new ContextMenuStrip();
+            menu.Items.Add("Показать", null, new EventHandler(delegate (object s, EventArgs e)
+            {
+                form.Show();
+                form.WindowState = FormWindowState.Normal;
+                form.Activate();
+            }));
+            menu.Items.Add("Выключить прокси", null, new EventHandler(delegate (object s, EventArgs e)
+            {
+                if (Relay.IsRunning) { TurnOff(); }
+            }));
+            menu.Items.Add(new ToolStripSeparator());
+            menu.Items.Add("Выход", null, new EventHandler(delegate (object s, EventArgs e)
+            {
+                reallyExit = true;
+                if (Relay.IsRunning) { TurnOff(); }
+                if (tray != null) { tray.Visible = false; tray.Dispose(); tray = null; }
+                Application.Exit();
+            }));
+            tray.ContextMenuStrip = menu;
+            tray.DoubleClick += new EventHandler(delegate (object s, EventArgs e)
+            {
+                form.Show();
+                form.WindowState = FormWindowState.Normal;
+                form.Activate();
+            });
         }
 
         // ---------- сборка окна ----------
