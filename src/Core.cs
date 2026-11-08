@@ -602,7 +602,7 @@ namespace AiBypass
         // сбросить это без перезагрузки машины (на телефоне то же делает режим полёта).
         public static readonly string[] BrowserProcesses = new string[]
         {
-            "chrome", "msedge", "firefox", "opera", "brave", "vivaldi", "browser", "yandex"
+            "chrome", "firefox", "opera", "brave", "vivaldi", "browser", "yandex"
         };
 
         public static List<string> RunningProcesses(string[] names)

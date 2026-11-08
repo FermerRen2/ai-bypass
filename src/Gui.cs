@@ -133,8 +133,27 @@ namespace AiBypass
             form.Text = "AiBypass";
             form.ClientSize = new Size(W, HeightClosed);
             form.StartPosition = FormStartPosition.CenterScreen;
-            form.FormBorderStyle = FormBorderStyle.FixedSingle;
+            form.FormBorderStyle = FormBorderStyle.None;
             form.MaximizeBox = false;
+            form.MinimizeBox = true;
+            try
+            {
+                using (System.IO.Stream st = System.Reflection.Assembly.GetExecutingAssembly()
+                    .GetManifestResourceStream("AiBypass.app.ico"))
+                {
+                    if (st != null) { form.Icon = new Icon(st); }
+                }
+            }
+            catch { }
+            form.Paint += new PaintEventHandler(delegate (object s, PaintEventArgs e)
+            {
+                // тонкая рамка вместо стандартной белой от Windows
+                using (Pen p = new Pen(Theme.Border, 1))
+                {
+                    e.Graphics.DrawRectangle(p, 0, 0, form.ClientSize.Width - 1, form.ClientSize.Height - 1);
+                }
+            });
+            form.Resize += new EventHandler(delegate (object s, EventArgs e) { form.Invalidate(); });
             form.BackColor = Theme.Page;
             form.Font = new Font("Segoe UI", 9f);
 
@@ -260,10 +279,24 @@ namespace AiBypass
 
         // ---------- сборка окна ----------
 
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        private static extern bool ReleaseCapture();
+
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        private static extern IntPtr SendMessage(IntPtr hWnd, int msg, int wParam, int lParam);
+
+        private static void DragWindow(object sender, MouseEventArgs e)
+        {
+            if (e.Button != MouseButtons.Left) { return; }
+            ReleaseCapture();
+            SendMessage(form.Handle, 0xA1, 0x2, 0); // WM_NCLBUTTONDOWN, HTCAPTION
+        }
+
         private static void BuildHeader()
         {
             Panel header = new Panel();
             header.SetBounds(0, 0, W, 84);
+            header.MouseDown += new MouseEventHandler(DragWindow);
             header.Paint += new PaintEventHandler(delegate (object s, PaintEventArgs e)
             {
                 using (SolidBrush b = new SolidBrush(Theme.Page)) { e.Graphics.FillRectangle(b, header.ClientRectangle); }
@@ -275,6 +308,29 @@ namespace AiBypass
                         f2, new Point(21, 50), Theme.Muted);
                 }
             });
+            // свои кнопки вместо виндовых
+            FlatButton bMin = new FlatButton();
+            bMin.Text = "—";
+            bMin.SetBounds(W - 84, 16, 32, 30);
+            bMin.Radius = 6;
+            bMin.Font = new Font("Segoe UI", 10f, FontStyle.Bold);
+            bMin.TextColor = Theme.Muted;
+            bMin.BackFill = Theme.Page;
+            bMin.Click += new EventHandler(delegate (object s, EventArgs e) { form.WindowState = FormWindowState.Minimized; });
+            header.Controls.Add(bMin);
+
+            FlatButton bClose = new FlatButton();
+            bClose.Text = "✕";
+            bClose.SetBounds(W - 46, 16, 32, 30);
+            bClose.Radius = 6;
+            bClose.Font = new Font("Segoe UI", 9f, FontStyle.Bold);
+            bClose.TextColor = Theme.Muted;
+            bClose.FillNormal = Theme.Page;
+            bClose.FillHover = Color.FromArgb(60, 30, 36);
+            bClose.BackFill = Theme.Page;
+            bClose.Click += new EventHandler(delegate (object s, EventArgs e) { form.Close(); });
+            header.Controls.Add(bClose);
+
             form.Controls.Add(header);
         }
 

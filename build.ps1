@@ -44,7 +44,9 @@ foreach ($f in $files) {
     [IO.File]::WriteAllText($f, $text, $bom)
 }
 
+$ico = Join-Path $src 'app.ico'
 $refs = @('/r:System.dll', '/r:System.Windows.Forms.dll', '/r:System.Drawing.dll')
+if (Test-Path $ico) { $refs += "/win32icon:$ico"; $refs += "/resource:$ico,AiBypass.app.ico" }
 
 $compileArgs = @(
     '/nologo',
