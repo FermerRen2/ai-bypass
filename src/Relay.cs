@@ -74,12 +74,28 @@ namespace AiBypass
     {
         public const int LocalPort = 2080;
 
-        // что отправляем в зарубежный прокси: только Google, всё остальное идёт напрямую
+        // Через прокси идёт ТОЛЬКО то, что без него не работает: Gemini и Grok.
+        // Всё остальное - напрямую. Раньше здесь были общие окончания вроде gstatic.com
+        // и ggpht.com: через прокси уезжали обложки, скрипты плеера и видео YouTube -
+        // мимо zapret, и ютуб переставал работать.
+        public static readonly string[] ProxyHosts = new string[]
+        {
+            "gemini.google.com",
+            "accounts.google.com",
+            "generativelanguage.googleapis.com",
+            "aistudio.google.com",
+            "grok.com",
+            "x.ai",
+            "api.x.ai",
+            "accounts.x.ai",
+            "assets.grok.com"
+        };
+
         public static readonly string[] ProxySuffixes = new string[]
         {
-            "google.com", "googleapis.com", "gstatic.com", "googleusercontent.com",
-            "withgoogle.com", "ggpht.com", "gvt1.com", "googlesyndication.com",
-            "google.co.uk", "google.de", "google.fr", "googleadservices.com"
+            ".clients6.google.com",
+            ".grok.com",
+            ".x.ai"
         };
 
         private static TcpListener listener;
@@ -242,9 +258,58 @@ namespace AiBypass
 
         // ---------- HTTP-прокси со стороны браузера ----------
 
+        // Готовый PAC-файл: браузер спрашивает его у нас и сам решает,
+        // что отправить в прокси, а что грузить напрямую. Тогда через релей
+        // идут только домены из списка, остальное его вообще не касается.
+        public static string BuildPac()
+        {
+            string local = "127.0.0.1:" + LocalPort;
+            System.Text.StringBuilder sb = new System.Text.StringBuilder();
+            sb.Append("function FindProxyForURL(url, host) {\n");
+            sb.Append("  host = host.toLowerCase();\n");
+            sb.Append("  var exact = [");
+            for (int i = 0; i < ProxyHosts.Length; i++)
+            {
+                if (i > 0) { sb.Append(", "); }
+                sb.Append("\"" + ProxyHosts[i] + "\"");
+            }
+            sb.Append("];\n  var suf = [");
+            for (int i = 0; i < ProxySuffixes.Length; i++)
+            {
+                if (i > 0) { sb.Append(", "); }
+                sb.Append("\"" + ProxySuffixes[i] + "\"");
+            }
+            sb.Append("];\n  var i;\n");
+            sb.Append("  for (i = 0; i < exact.length; i++) { if (host === exact[i]) return \"PROXY " + local + "\"; }\n");
+            sb.Append("  for (i = 0; i < suf.length; i++) { var s = suf[i]; if (host.length > s.length && host.substring(host.length - s.length) === s) return \"PROXY " + local + "\"; }\n");
+            sb.Append("  return \"DIRECT\";\n}\n");
+            return sb.ToString();
+        }
+
+        private static bool ServePac(NetworkStream cs, string head)
+        {
+            string[] first = head.Split(' ');
+            if (first.Length < 2) { return false; }
+            if (!first[0].Equals("GET", StringComparison.OrdinalIgnoreCase)) { return false; }
+            if (first[1].IndexOf("/proxy.pac", StringComparison.OrdinalIgnoreCase) < 0) { return false; }
+
+            byte[] body = Encoding.ASCII.GetBytes(BuildPac());
+            string header = "HTTP/1.1 200 OK\r\n" +
+                            "Content-Type: application/x-ns-proxy-autoconfig\r\n" +
+                            "Content-Length: " + body.Length + "\r\n" +
+                            "Connection: close\r\n\r\n";
+            byte[] hb = Encoding.ASCII.GetBytes(header);
+            cs.Write(hb, 0, hb.Length);
+            cs.Write(body, 0, body.Length);
+            cs.Flush();
+            return true;
+        }
+
         private static void HandleHttp(NetworkStream cs, TcpClient client, byte firstByte)
         {
             string head = ((char)firstByte).ToString() + ReadHeaders(cs);
+            if (ServePac(cs, head)) { client.Close(); return; }
+
             string[] parts = head.Split(' ');
             if (parts.Length < 2) { client.Close(); return; }
 
@@ -365,15 +430,18 @@ namespace AiBypass
         {
             if (string.IsNullOrEmpty(host)) { return false; }
             string h = host.ToLowerInvariant();
+
+            for (int i = 0; i < ProxyHosts.Length; i++)
+            {
+                if (h == ProxyHosts[i]) { return true; }
+            }
             for (int i = 0; i < ProxySuffixes.Length; i++)
             {
                 string s = ProxySuffixes[i];
-                if (h == s) { return true; }
-                if (h.Length > s.Length && h.EndsWith("." + s, StringComparison.Ordinal)) { return true; }
+                if (h.Length > s.Length && h.EndsWith(s, StringComparison.Ordinal)) { return true; }
             }
             return false;
         }
-
         private static TcpClient ConnectViaSocks5(string host, int port)
         {
             try

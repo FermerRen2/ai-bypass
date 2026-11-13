@@ -825,6 +825,40 @@ namespace AiBypass
             RefreshWinInet();
         }
 
+        // Прокси только для нужных доменов: системе отдаём PAC-файл, который
+        // раздаёт сам релей. Тогда браузер шлёт нам только Gemini и Grok,
+        // а YouTube, github и прочее идут напрямую и вообще нас не касаются.
+        public static void SetSystemProxyPac(bool on)
+        {
+            string key = @"Software\Microsoft\Windows\CurrentVersion\Internet Settings";
+            using (Microsoft.Win32.RegistryKey k = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(key, true))
+            {
+                if (k == null) { throw new Exception("нет доступа к настройкам прокси"); }
+                if (on)
+                {
+                    k.SetValue("ProxyEnable", 0);
+                    k.SetValue("AutoConfigURL", "http://127.0.0.1:2080/proxy.pac");
+                }
+                else
+                {
+                    k.SetValue("ProxyEnable", 0);
+                    k.DeleteValue("AutoConfigURL", false);
+                }
+            }
+            RefreshWinInet();
+        }
+
+        public static string SystemPac()
+        {
+            string key = @"Software\Microsoft\Windows\CurrentVersion\Internet Settings";
+            using (Microsoft.Win32.RegistryKey k = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(key, false))
+            {
+                if (k == null) { return ""; }
+                object v = k.GetValue("AutoConfigURL");
+                return v == null ? "" : v.ToString();
+            }
+        }
+
         public static string SystemProxy()
         {
             string key = @"Software\Microsoft\Windows\CurrentVersion\Internet Settings";

@@ -58,7 +58,7 @@ namespace AiBypass
                 {
                     case "--version":
                     case "-v":
-                        Console.WriteLine("AiBypass 1.1.10");
+                        Console.WriteLine("AiBypass 1.1.11");
                         return 0;
 
                     case "--state":
@@ -205,9 +205,9 @@ namespace AiBypass
                             List<string> lines = new List<string>();
                             Relay.Start(ps, lines);
                             for (int i = 0; i < lines.Count; i++) { Console.WriteLine(lines[i]); }
-                            Core.SetSystemProxy("127.0.0.1:" + Relay.LocalPort);
+                            Core.SetSystemProxyPac(true);
                             Core.SaveProxyUrl(url);
-                            Console.WriteLine("системный прокси: " + Core.SystemProxy());
+                            Console.WriteLine("PAC: " + Core.SystemPac());
                             Console.WriteLine("Релей работает. Закрой это окно (Ctrl+C) чтобы выключить.");
                             try
                             {
@@ -216,7 +216,7 @@ namespace AiBypass
                             finally
                             {
                                 Relay.Stop(null);
-                                Core.SetSystemProxy("");
+                                Core.SetSystemProxyPac(false);
                                 Console.WriteLine("прокси снят");
                             }
                         }
@@ -224,7 +224,7 @@ namespace AiBypass
                     case "--proxy-off":
                         {
                             Relay.Stop(null);
-                            Core.SetSystemProxy("");
+                            Core.SetSystemProxyPac(false);
                             Console.WriteLine("прокси снят: '" + Core.SystemProxy() + "'");
                             return 0;
                         }
@@ -238,6 +238,13 @@ namespace AiBypass
                                 on ? "--proxy-server=http://127.0.0.1:" + Relay.LocalPort : "");
                             for (int i = 0; i < lines.Count; i++) { Console.WriteLine(lines[i]); }
                             Console.WriteLine(on ? "браузеры перезапущены С прокси" : "браузеры перезапущены БЕЗ прокси");
+                            return 0;
+                        }
+
+                    case "--route":
+                        {
+                            if (args.Length < 2) { Console.WriteLine("нужно имя сайта"); return 2; }
+                            Console.WriteLine(args[1] + " -> " + (Relay.NeedsProxy(args[1]) ? "ЧЕРЕЗ ПРОКСИ" : "напрямую"));
                             return 0;
                         }
 

@@ -308,7 +308,7 @@ namespace AiBypass
                     return;
                 }
                 if (Relay.IsRunning) { Relay.Stop(null); }
-                try { Core.SetSystemProxy(""); } catch { }
+                try { Core.SetSystemProxyPac(false); } catch { }
             });
 
             BuildTray();
@@ -319,6 +319,11 @@ namespace AiBypass
                 if (sp != null && sp.IndexOf("127.0.0.1", StringComparison.Ordinal) >= 0)
                 {
                     Core.SetSystemProxy("");
+                }
+                string pac = Core.SystemPac();
+                if (pac != null && pac.IndexOf("127.0.0.1", StringComparison.Ordinal) >= 0)
+                {
+                    Core.SetSystemProxyPac(false);
                 }
                 if (Core.BrowsersMarked())
                 {
@@ -480,7 +485,7 @@ namespace AiBypass
 
             FlatButton repoLink = new FlatButton();
             repoLink.SetBounds(W - 190, 306, 166, 32);
-            repoLink.Text = "GitHub · v1.1.10";
+            repoLink.Text = "GitHub · v1.1.11";
             repoLink.Font = new Font("Segoe UI", 8.5f);
             repoLink.BackColor = Theme.BgTop;
             repoLink.Click += new EventHandler(OpenRepo);
@@ -631,8 +636,8 @@ namespace AiBypass
 
                 stateLabel.Text = "Прокси включён";
                 stateLabel.ForeColor = Theme.Green;
-                detailLabel.Text = "Google идёт через " + Relay.CurrentUpstream +
-                                   "\r\nОстальные сайты — напрямую, как обычно";
+                detailLabel.Text = "Через прокси: Gemini и Grok" +
+                                   "\r\nВсё остальное — напрямую, включая YouTube и GitHub";
             }
             else
             {
@@ -699,22 +704,21 @@ namespace AiBypass
                 List<string> lines = new List<string>();
                 Relay.Start(ps, lines);
                 WriteAll(lines);
-                Core.SetSystemProxy("127.0.0.1:" + Relay.LocalPort);
+                Core.SetSystemProxyPac(true);
                 Core.SaveProxyUrl(url);
-                Write("Включено. Перезапускаю браузеры — они откроют Gemini.");
+                Write("Включено. Через прокси пойдут только Gemini и Grok, остальное — напрямую.");
                 RefreshState();
                 Application.DoEvents();
 
                 List<string> bl = new List<string>();
                 Core.RestartProcesses(Core.BrowserProcesses, bl, false,
-                    "https://gemini.google.com/app", "--proxy-server=http://127.0.0.1:" + Relay.LocalPort);
-                Core.MarkBrowsersWithProxy(true);
+                    "https://gemini.google.com/app", "");
                 WriteAll(bl);
             }
             catch (Exception ex)
             {
                 Write("Не вышло: " + ex.Message);
-                try { Relay.Stop(null); Core.SetSystemProxy(""); } catch { }
+                try { Relay.Stop(null); Core.SetSystemProxyPac(false); } catch { }
                 RefreshState();
             }
         }
@@ -722,7 +726,7 @@ namespace AiBypass
         private static void TurnOff()
         {
             Relay.Stop(null);
-            Core.SetSystemProxy("");
+            Core.SetSystemProxyPac(false);
             if (Core.BrowsersMarked())
             {
                 Write("Выключено. Перезапускаю браузеры без прокси.");
