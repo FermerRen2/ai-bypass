@@ -72,7 +72,7 @@ namespace AiBypass
 
     public static class Relay
     {
-        public const int LocalPort = 2080;
+        // порт может быть занят другим процессом (в том числе «мёртвым»), поэтому берём первый свободный
 
         // Через прокси идёт ТОЛЬКО то, что без него не работает: Gemini и Grok.
         // Всё остальное - напрямую. Раньше здесь были общие окончания вроде gstatic.com
@@ -98,6 +98,9 @@ namespace AiBypass
             ".x.ai"
         };
 
+        public static int LocalPort = 2080;
+        public static readonly int[] PortCandidates = new int[] { 2080, 2081, 2082, 2083, 2084, 2085, 2086, 2087, 2088, 2089, 2090 };
+
         private static TcpListener listener;
         private static Thread acceptThread;
         private static volatile bool running;
@@ -117,15 +120,33 @@ namespace AiBypass
         {
             if (running) { Stop(log); }
             settings = s;
-            try
+
+            // порт может быть занят другим процессом (бывает, что «мёртвым»),
+            // поэтому пробуем по порядку, пока не найдём свободный
+            Exception last = null;
+            listener = null;
+            for (int i = 0; i < PortCandidates.Length; i++)
             {
-                listener = new TcpListener(IPAddress.Loopback, LocalPort);
-                listener.Start();
+                try
+                {
+                    TcpListener cand = new TcpListener(IPAddress.Loopback, PortCandidates[i]);
+                    cand.Start();
+                    listener = cand;
+                    LocalPort = PortCandidates[i];
+                    last = null;
+                    break;
+                }
+                catch (Exception ex)
+                {
+                    last = ex;
+                }
             }
-            catch (Exception ex)
+            if (listener == null)
             {
-                throw new Exception("не смог занять порт " + LocalPort + ": " + ex.Message);
+                throw new Exception("нет свободного порта для релея (пробовал 2080-2090): " +
+                    (last == null ? "" : last.Message));
             }
+
             running = true;
             acceptThread = new Thread(AcceptLoop);
             acceptThread.IsBackground = true;
@@ -133,7 +154,6 @@ namespace AiBypass
             acceptThread.Start();
             log.Add("релей поднят на 127.0.0.1:" + LocalPort + ", выход через " + s.Display);
         }
-
         public static void Stop(List<string> log)
         {
             running = false;

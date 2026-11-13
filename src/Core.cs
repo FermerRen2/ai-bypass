@@ -837,7 +837,7 @@ namespace AiBypass
                 if (on)
                 {
                     k.SetValue("ProxyEnable", 0);
-                    k.SetValue("AutoConfigURL", "http://127.0.0.1:2080/proxy.pac");
+                    k.SetValue("AutoConfigURL", "http://127.0.0.1:" + Relay.LocalPort + "/proxy.pac");
                 }
                 else
                 {

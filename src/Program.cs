@@ -31,6 +31,16 @@ namespace AiBypass
 
             if (args.Length == 0)
             {
+                // второй экземпляр не нужен: он полез бы на тот же порт и наломал дров.
+                // если программа уже запущена - показываем её окно и выходим.
+                bool created;
+                singleInstance = new System.Threading.Mutex(true, "AiBypass.single.instance", out created);
+                if (!created)
+                {
+                    ShowExistingWindow();
+                    return 0;
+                }
+
                 Application.EnableVisualStyles();
                 Application.SetCompatibleTextRenderingDefault(false);
                 try
@@ -58,7 +68,7 @@ namespace AiBypass
                 {
                     case "--version":
                     case "-v":
-                        Console.WriteLine("AiBypass 1.1.11");
+                        Console.WriteLine("AiBypass 1.1.12");
                         return 0;
 
                     case "--state":
@@ -304,6 +314,33 @@ namespace AiBypass
                 Console.WriteLine("ОШИБКА: " + ex.Message);
                 return 1;
             }
+        }
+
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        private static extern bool SetForegroundWindow(IntPtr hWnd);
+
+        private static System.Threading.Mutex singleInstance;
+
+        private static void ShowExistingWindow()
+        {
+            try
+            {
+                foreach (System.Diagnostics.Process p in System.Diagnostics.Process.GetProcessesByName("AiBypass"))
+                {
+                    if (p.Id == System.Diagnostics.Process.GetCurrentProcess().Id) { continue; }
+                    p.Refresh();
+                    if (p.MainWindowHandle != IntPtr.Zero)
+                    {
+                        ShowWindow(p.MainWindowHandle, 9); // SW_RESTORE
+                        SetForegroundWindow(p.MainWindowHandle);
+                        return;
+                    }
+                }
+            }
+            catch { }
         }
 
         private static void PrintHelp()

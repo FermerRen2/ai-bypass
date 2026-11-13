@@ -485,7 +485,7 @@ namespace AiBypass
 
             FlatButton repoLink = new FlatButton();
             repoLink.SetBounds(W - 190, 306, 166, 32);
-            repoLink.Text = "GitHub · v1.1.11";
+            repoLink.Text = "GitHub · v1.1.12";
             repoLink.Font = new Font("Segoe UI", 8.5f);
             repoLink.BackColor = Theme.BgTop;
             repoLink.Click += new EventHandler(OpenRepo);
